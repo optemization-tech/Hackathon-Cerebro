@@ -1,8 +1,19 @@
 # Cerebro
 
-Second-brain app that ingests text (transcripts, Slack, notes), distills it into structured categories (decisions, cultural signals, themes, open questions, entities), and forecasts when decisions need to be made. Visualizes connections between people, topics, and decisions.
+Optemization's team second brain. Six **source Notion Workers** (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) pull from their respective systems, clean their inputs against a Glossary DB via a shared cleaning library, and write the cleaned text into a workspace-level **Short-Term Memory** DB ([already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d)). The Notion-Docs worker watches the org's existing Docs database(s); for Optemization, [this one](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7). A dedicated **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank (`optemization-cerebro`). Hindsight handles fact extraction, entity resolution, and observation consolidation. A **Cerebro Sync Worker** receives Hindsight webhooks and writes structured records into **Long-Term Memory** — eleven Notion DBs spanning dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), and intelligence (Frameworks, Strategies, Insights, Patterns, Signals). An **Ask Cerebro** Custom Agent answers questions via Hindsight `reflect()`, surfaced through a Tavus video avatar, ElevenLabs voice chat, the Notion agent UI, and a force-directed graph viz on a Next.js page.
 
-Status: scaffolded. Next.js + TypeScript on Vercel; Notion databases as the only data store; Anthropic Claude for distillation. See `app/`, `lib/`, `vercel.json`, `.env.example`.
+Notion is the canonical raw store. Source workers clean before writing (via a shared Glossary-normalization library). Hindsight is an index/query engine on top, fed by the Indexer Worker. Source workers never call Hindsight directly.
+
+Built for the Notion Developer Platform Hackathon (May 16–17, San Francisco), dogfooded by the Optemization team on our own data, with consulting clients like AIVC as the post-hackathon product target.
+
+**Before doing any work in this repo, read [`docs/specs/cerebro.md`](docs/specs/cerebro.md).** It's a single spec with two clearly-labeled sections: **Hackathon scope (V1)** for what ships by Sunday demo, and **Product scope (V1.1 → V3)** for the long-arc vision (Hindsight Cloud → self-host → fork triggers; full data model; roadmap). Read the hackathon section if you're contributing this weekend; skim the product section for context on direction.
+
+The spec supersedes the V0 scaffold in `lib/` (which distills via Anthropic directly into 5 flat DBs). Default to evolving V0 toward the hackathon V1, not building parallel.
+
+Repo layout:
+- `app/`, `lib/` — Next.js app + V0 distillation pipeline (Vercel cron → Anthropic → 5 flat DBs). Visual surfaces (Tavus avatar, graph viz, Q&A API at `/api/ask`) land here.
+- `slack/` — canonical Notion Worker pattern. New source workers (Granola, Circleback, GMail, GCal, Notion-Docs) follow this shape: pull from their source, parse, call `clean()` from the shared cleaning library, write to Short-Term Memory. The Hindsight Indexer Worker is a separate Notion Worker that polls Short-Term Memory and feeds Hindsight.
+- `docs/specs/cerebro.md` — the single source of truth.
 
 ---
 
