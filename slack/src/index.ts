@@ -57,28 +57,44 @@ async function upsertSlackMessage(
 	notion: NotionClient,
 	msg: SlackMessageInput,
 	userMatchCache?: Map<string, string | null>,
+	existingIdsCache?: Map<string, { pageId: string }>,
 ): Promise<UpsertResult> {
 	const team = msg.teamId ?? "unknown-team";
 	const idKey = `slack://${team}/${msg.channelId}/${msg.timestamp}`;
 	const id = uuidv5(idKey, SLACK_NAMESPACE_UUID);
 
-	const existing = await notion.dataSources.query({
-		data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
-		filter: {
-			property: "ID",
-			rich_text: { equals: id },
-		},
-		page_size: 1,
-	});
-	if (existing.results.length > 0) {
-		const existingPage = existing.results[0];
-		return {
-			id,
-			pageId: existingPage.id,
-			pageUrl: `https://www.notion.so/${existingPage.id.replace(/-/g, "")}`,
-			created: false,
-			matchedNotionUserId: null,
-		};
+	// Dedup: prefer the in-memory cache when provided (set by pullSlackHistory).
+	// When the cache is absent (single-message tool use), fall back to a per-call query.
+	if (existingIdsCache) {
+		const cached = existingIdsCache.get(id);
+		if (cached) {
+			return {
+				id,
+				pageId: cached.pageId,
+				pageUrl: `https://www.notion.so/${cached.pageId.replace(/-/g, "")}`,
+				created: false,
+				matchedNotionUserId: null,
+			};
+		}
+	} else {
+		const existing = await notion.dataSources.query({
+			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
+			filter: {
+				property: "ID",
+				rich_text: { equals: id },
+			},
+			page_size: 1,
+		});
+		if (existing.results.length > 0) {
+			const existingPage = existing.results[0];
+			return {
+				id,
+				pageId: existingPage.id,
+				pageUrl: `https://www.notion.so/${existingPage.id.replace(/-/g, "")}`,
+				created: false,
+				matchedNotionUserId: null,
+			};
+		}
 	}
 
 	const senderLabel = msg.userRealName ?? msg.userName;
@@ -173,6 +189,9 @@ async function upsertSlackMessage(
 		markdown,
 	});
 
+	// Record the new entry so subsequent messages in this run dedup against it.
+	existingIdsCache?.set(id, { pageId: page.id });
+
 	return {
 		id,
 		pageId: page.id,
@@ -180,6 +199,36 @@ async function upsertSlackMessage(
 		created: true,
 		matchedNotionUserId,
 	};
+}
+
+// Bulk-load all existing Slack-message page IDs (UUID -> Notion page ID).
+// Lets pullSlackHistory dedup in-memory instead of querying Notion per message.
+async function loadExistingSlackMessageIds(
+	notion: NotionClient,
+): Promise<Map<string, { pageId: string }>> {
+	const cache = new Map<string, { pageId: string }>();
+	let cursor: string | undefined;
+	do {
+		const resp = await notion.dataSources.query({
+			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
+			filter: { property: "Data Type", select: { equals: "Slack message" } },
+			page_size: 100,
+			...(cursor ? { start_cursor: cursor } : {}),
+		});
+		for (const page of resp.results) {
+			const props = (page as { properties?: Record<string, unknown> }).properties;
+			if (!props) continue;
+			const idProp = props.ID as
+				| { rich_text?: Array<{ plain_text?: string }> }
+				| undefined;
+			const idValue = idProp?.rich_text?.[0]?.plain_text;
+			if (idValue) {
+				cache.set(idValue, { pageId: page.id });
+			}
+		}
+		cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
+	} while (cursor);
+	return cache;
 }
 
 // === Slack pull orchestrator (shared by backfill and delta) ===
@@ -219,6 +268,10 @@ async function pullSlackHistory(
 	};
 	const userInfoCache = new Map<string, UserCacheEntry>();
 	const notionUserCache = new Map<string, string | null>();
+	const existingIdsCache = await loadExistingSlackMessageIds(notion);
+	console.log(
+		`[pullSlackHistory] preloaded ${existingIdsCache.size} existing Slack message IDs for in-memory dedup`,
+	);
 
 	async function getUserInfo(userId: string): Promise<UserCacheEntry> {
 		const cached = userInfoCache.get(userId);
@@ -319,6 +372,7 @@ async function pullSlackHistory(
 					workspaceName,
 				},
 				notionUserCache,
+				existingIdsCache,
 			);
 			if (result.created) messagesCreated++;
 			else messagesSkipped++;
