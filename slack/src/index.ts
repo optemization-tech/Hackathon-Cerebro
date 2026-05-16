@@ -205,6 +205,54 @@ async function upsertSlackMessage(
 	};
 }
 
+// Rewrite Slack message-formatting tokens into human-readable text.
+// Handles user/channel/special mentions, user groups, dates, and links.
+// User IDs are resolved via the supplied resolver (typically the per-run cache).
+async function cleanSlackText(
+	text: string,
+	resolveUserId: (userId: string) => Promise<{ displayName: string }>,
+): Promise<string> {
+	if (!text) return text;
+	let out = text;
+
+	// User mentions: <@U123> or <@U123|fallback>. Resolve once per unique ID.
+	const userMentionPattern = /<@(U[A-Z0-9]+)(?:\|[^>]+)?>/g;
+	const uniqueUserIds = new Set<string>();
+	for (const m of out.matchAll(userMentionPattern)) uniqueUserIds.add(m[1]);
+	const userResolutions = new Map<string, string>();
+	for (const userId of uniqueUserIds) {
+		try {
+			const info = await resolveUserId(userId);
+			userResolutions.set(userId, info.displayName);
+		} catch {
+			userResolutions.set(userId, userId);
+		}
+	}
+	out = out.replace(userMentionPattern, (full, userId) => {
+		const name = userResolutions.get(userId);
+		return name ? `@${name}` : full;
+	});
+
+	// Channel mentions with embedded name: <#C123|name> -> #name.
+	out = out.replace(/<#C[A-Z0-9]+\|([^>]+)>/g, "#$1");
+
+	// Special @-mentions.
+	out = out.replace(/<!(everyone|here|channel)>/g, "@$1");
+
+	// User groups: <!subteam^S123|@name>.
+	out = out.replace(/<!subteam\^[A-Z0-9]+\|@?([^>]+)>/g, "@$1");
+
+	// Dates: <!date^TS^TOKEN|FALLBACK> or <!date^TS^FALLBACK>.
+	out = out.replace(/<!date\^\d+\^[^|>]+\|([^>]+)>/g, "$1");
+	out = out.replace(/<!date\^\d+\^([^>]+)>/g, "$1");
+
+	// Links: <URL|text> -> [text](URL); <URL> -> URL. Covers https? and mailto.
+	out = out.replace(/<((?:https?|mailto):[^|>]+)\|([^>]+)>/g, "[$2]($1)");
+	out = out.replace(/<((?:https?|mailto):[^>]+)>/g, "$1");
+
+	return out;
+}
+
 // Bulk-load all existing Slack-message page IDs (UUID -> Notion page ID).
 // Lets pullSlackHistory dedup in-memory instead of querying Notion per message.
 async function loadExistingSlackMessageIds(
@@ -353,6 +401,8 @@ async function pullSlackHistory(
 			? await getUserInfo(slackUserId)
 			: { displayName: "unknown", realName: null, email: null };
 
+		const cleanedText = await cleanSlackText(msg.text ?? "", getUserInfo);
+
 		let permalink: string | null = null;
 		if (options.fetchPermalinks) {
 			try {
@@ -370,7 +420,7 @@ async function pullSlackHistory(
 			const result = await upsertSlackMessage(
 				notion,
 				{
-					text: msg.text ?? "",
+					text: cleanedText,
 					teamId,
 					userId: slackUserId,
 					userName: userInfo.displayName,
