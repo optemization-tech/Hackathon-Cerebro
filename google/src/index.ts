@@ -372,7 +372,7 @@ async function upsertGoogleItem(
 
 	const ownerNotionId = await resolveNotionUser(notion, item.ownerEmail, caches.userMatch);
 
-	const dataType = item.kind === "email" ? "Email" : "Calendar event";
+	const dataType = item.kind === "email" ? "Email" : "Calendar Event";
 
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: title.slice(0, 2000) } }] },
@@ -408,7 +408,7 @@ async function loadExistingGoogleItemIds(
 			filter: {
 				or: [
 					{ property: "Data Type", select: { equals: "Email" } },
-					{ property: "Data Type", select: { equals: "Calendar event" } },
+					{ property: "Data Type", select: { equals: "Calendar Event" } },
 				],
 			},
 			page_size: 100,
