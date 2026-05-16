@@ -503,7 +503,18 @@ async function pullGmailForUser(
 	const auth = impersonate(userEmail, [SCOPE_GMAIL]);
 	const gmail = google.gmail({ version: "v1", auth });
 
-	const q = `after:${oldestEpochS} -in:spam -in:trash -category:promotions`;
+	// Focus on interpersonal mail: drop spam/trash, every non-primary Gmail
+	// category, and anything carrying a calendar invite (.ics attachment).
+	const q = [
+		`after:${oldestEpochS}`,
+		"-in:spam",
+		"-in:trash",
+		"-category:promotions",
+		"-category:updates",
+		"-category:social",
+		"-category:forums",
+		"-filename:ics",
+	].join(" ");
 	const items: GoogleItem[] = [];
 
 	let pageToken: string | undefined;
