@@ -179,6 +179,7 @@ async function upsertSlackMessage(
 		Name: { title: [{ type: "text", text: { content: title } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Slack message" } },
+		Status: { select: { name: "cleaned" } },
 	};
 	if (matchedNotionUserId) {
 		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
