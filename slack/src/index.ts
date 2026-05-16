@@ -15,6 +15,10 @@ const SHORT_TERM_MEMORY_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
 // Keep stable so identical messages always map to the same ID.
 const SLACK_NAMESPACE_UUID = "5f4d8a1c-1b3a-4e5f-9d2c-7e6f8a9b0c1d";
 
+// Earliest Slack message ts the worker is allowed to ingest (epoch seconds).
+// 1767225600 = 2026-01-01T00:00:00Z. Messages older than this are skipped.
+const MIN_MESSAGE_TIMESTAMP = "1767225600";
+
 function uuidv5(name: string, namespace: string): string {
 	const nsHex = namespace.replace(/-/g, "");
 	if (nsHex.length !== 32) throw new Error("Invalid namespace UUID");
@@ -257,6 +261,12 @@ async function pullSlackHistory(
 ): Promise<PullResult> {
 	const channelTypes = "public_channel,private_channel,mpim,im";
 
+	// Floor `oldest` to MIN_MESSAGE_TIMESTAMP so we never request pre-2026 history.
+	const effectiveOldest =
+		options.oldest && parseFloat(options.oldest) > parseFloat(MIN_MESSAGE_TIMESTAMP)
+			? options.oldest
+			: MIN_MESSAGE_TIMESTAMP;
+
 	const teamInfo = await slack.team.info();
 	const teamId = teamInfo.team?.id ?? null;
 	const workspaceName = teamInfo.team?.name ?? null;
@@ -334,6 +344,8 @@ async function pullSlackHistory(
 		msg: { ts?: string; text?: string; user?: string; thread_ts?: string },
 	): Promise<void> => {
 		if (!msg.ts) return;
+		// Hard floor: skip anything before 2026 even if Slack returned it.
+		if (parseFloat(msg.ts) < parseFloat(MIN_MESSAGE_TIMESTAMP)) return;
 		messagesProcessed++;
 
 		const slackUserId = msg.user ?? null;
@@ -407,12 +419,14 @@ async function pullSlackHistory(
 
 			const seenThreads = new Set<string>();
 			let historyCursor: string | undefined;
+			// conversations.history returns messages in reverse chronological order
+			// (newest first). We iterate the response as-is, so processing is descending.
 			do {
 				const resp = await slack.conversations.history({
 					channel: channel.id,
 					limit: 200,
 					cursor: historyCursor,
-					oldest: options.oldest,
+					oldest: effectiveOldest,
 				});
 				const messages = (resp.messages ?? []) as Array<{
 					ts?: string;
@@ -437,6 +451,14 @@ async function pullSlackHistory(
 
 			if (options.includeThreads) {
 				for (const threadTs of seenThreads) {
+					// conversations.replies returns oldest-first; collect all then
+					// sort descending so processing matches the rest of the pipeline.
+					const allReplies: Array<{
+						ts?: string;
+						text?: string;
+						user?: string;
+						thread_ts?: string;
+					}> = [];
 					let replyCursor: string | undefined;
 					do {
 						const resp = await slack.conversations.replies({
@@ -444,7 +466,7 @@ async function pullSlackHistory(
 							ts: threadTs,
 							limit: 200,
 							cursor: replyCursor,
-							oldest: options.oldest,
+							oldest: effectiveOldest,
 						});
 						const replies = (resp.messages ?? []) as Array<{
 							ts?: string;
@@ -454,10 +476,16 @@ async function pullSlackHistory(
 						}>;
 						for (const reply of replies) {
 							if (reply.ts === threadTs) continue; // parent already processed
-							await processMessage(channel, reply);
+							allReplies.push(reply);
 						}
 						replyCursor = resp.response_metadata?.next_cursor || undefined;
 					} while (replyCursor);
+					allReplies.sort(
+						(a, b) => parseFloat(b.ts ?? "0") - parseFloat(a.ts ?? "0"),
+					);
+					for (const reply of allReplies) {
+						await processMessage(channel, reply);
+					}
 				}
 			}
 		} catch (err) {
