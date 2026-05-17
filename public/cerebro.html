@@ -972,7 +972,7 @@
     align-items: center;
     justify-content: center;
   }
-  .tavus-frame {
+  .avatar-frame {
     width: 480px;
     height: 360px;
     background: var(--bg-paper-deep);
@@ -984,13 +984,22 @@
     position: relative;
     overflow: hidden;
   }
-  .tavus-frame::before {
+  .avatar-frame::before {
     content: '';
     position: absolute;
     inset: 0;
     background: radial-gradient(circle at 50% 40%, rgba(78,95,253,0.08), transparent 70%);
+    pointer-events: none;
   }
-  .tavus-label {
+  .avatar-frame video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .avatar-label {
     font-family: var(--mono);
     font-size: 14px;
     color: var(--accent);
@@ -998,44 +1007,21 @@
     z-index: 1;
     letter-spacing: 0.05em;
   }
-
-  /* Voice-only indicator (speak tab) — concentric pulses around a mic glyph. */
-  .voice-pulse {
-    position: relative;
-    width: 280px;
-    height: 280px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .avatar-start-btn {
+    margin-top: 16px;
+    padding: 10px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--bg-paper);
+    background: var(--accent);
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 150ms ease;
   }
-  .voice-pulse .ring {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 1px solid var(--accent);
-    opacity: 0;
-    animation: voice-ring 2.6s ease-out infinite;
-  }
-  .voice-pulse .ring-2 { animation-delay: 0.65s; }
-  .voice-pulse .ring-3 { animation-delay: 1.3s; }
-  .voice-pulse .core {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: var(--bg-paper-deep);
-    box-shadow: var(--shadow-soft), 0 0 0 1px var(--rule);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 44px;
-    position: relative;
-    z-index: 1;
-  }
-  @keyframes voice-ring {
-    0%   { transform: scale(0.5); opacity: 0; }
-    20%  { opacity: 0.45; }
-    100% { transform: scale(1.05); opacity: 0; }
-  }
+  .avatar-start-btn:hover { opacity: 0.85; }
+  .avatar-start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .status-row {
     display: flex;
     align-items: center;
@@ -1076,7 +1062,7 @@
     .graph-view, .avatar-view { height: auto; min-height: calc(100vh - 56px); }
     .graph-canvas { min-height: 360px; }
     .prompt-headline { font-size: 36px; }
-    .tavus-frame { width: 100%; max-width: 480px; aspect-ratio: 4/3; height: auto; }
+    .avatar-frame { width: 100%; max-width: 480px; aspect-ratio: 4/3; height: auto; }
     .topbar { padding: 0 20px; }
   }
 </style>
@@ -1272,7 +1258,6 @@ function render() {
   else if (state.mode === "answered") { main.innerHTML = renderAnswered(); mountAnswered(); }
   else if (state.mode === "graph") { main.innerHTML = renderGraph(); mountGraph(); }
   else if (state.mode === "avatar") { main.innerHTML = renderAvatar(); mountAvatar(); }
-  else if (state.mode === "video") { main.innerHTML = renderVideo(); mountVideo(); }
   else if (state.mode === "review") { main.innerHTML = renderReview(); mountReview(); }
 }
 
@@ -1291,7 +1276,7 @@ function renderHome() {
         <div class="affordances">
           <button class="affordance primary" onclick="submitPrompt()">⏎ ask</button>
           <button class="affordance" onclick="setState({mode:'avatar'})">🎙 speak</button>
-          <button class="affordance" onclick="setState({mode:'video'})">🎬 video</button>
+          <button class="affordance" onclick="setState({mode:'avatar'})">🎅 avatar</button>
           <button class="affordance" onclick="setState({mode:'graph', graphFocus:'rc'})">◇ graph</button>
           <button class="affordance review-btn" onclick="setState({mode:'review'})">
             <span>◆ swipe</span>
@@ -1567,16 +1552,15 @@ function renderAvatar() {
   return `
     <div class="avatar-view">
       <div class="avatar-stage">
-        <div class="voice-pulse" aria-hidden="true">
-          <div class="ring ring-1"></div>
-          <div class="ring ring-2"></div>
-          <div class="ring ring-3"></div>
-          <div class="core">🎙</div>
+        <div class="avatar-frame" id="avatar-frame">
+          <video id="avatar-video" autoplay playsinline muted></video>
+          <div class="avatar-label" id="avatar-label">[ click start ]</div>
         </div>
         <div class="status-row">
           <div class="pulse-dot"></div>
-          <span>listening…</span>
+          <span id="avatar-status">idle</span>
         </div>
+        <button class="avatar-start-btn" id="avatar-start">Start avatar</button>
       </div>
       <aside class="citation-rail" id="live-rail">
         <div class="eyebrow">
@@ -1590,11 +1574,14 @@ function renderAvatar() {
 }
 
 function mountAvatar() {
-  const statusEl = document.querySelector(".status-row span");
+  const statusEl = document.getElementById("avatar-status");
+  const labelEl = document.getElementById("avatar-label");
+  const videoEl = document.getElementById("avatar-video");
+  const startBtn = document.getElementById("avatar-start");
   const liveContainer = document.getElementById("live-citations");
-  if (statusEl) statusEl.textContent = "connecting…";
 
   const setStatus = (s) => { if (statusEl) statusEl.textContent = s; };
+  const setLabel = (s) => { if (labelEl) labelEl.textContent = s; };
   const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const appendTurn = (who, text) => {
@@ -1614,53 +1601,37 @@ function mountAvatar() {
   };
 
   const waitForSdk = (tries = 0) => {
-    if (window.CerebroEL) return Promise.resolve();
-    if (tries > 50) return Promise.reject(new Error("SDK failed to load"));
+    if (window.CerebroAvatar) return Promise.resolve();
+    if (tries > 50) return Promise.reject(new Error("LiveAvatar SDK failed to load"));
     return new Promise(r => setTimeout(r, 100)).then(() => waitForSdk(tries + 1));
   };
 
-  waitForSdk()
-    .then(() => window.CerebroEL.startVoiceChat({
-      onStatus: (s) => {
-        if (s === "connected") setStatus("listening…");
-        else if (s === "speaking") setStatus("speaking…");
-        else if (s === "listening") setStatus("listening…");
-        else if (s === "ended") setStatus("ended");
-        else setStatus(s);
-      },
-      onMessage: (who, text) => appendTurn(who, text),
-      onError: (msg) => setStatus(`error: ${msg}`)
-    }))
-    .catch(e => setStatus(`error: ${e.message}`));
-}
+  let running = false;
+  const start = async () => {
+    if (running) return;
+    running = true;
+    startBtn.disabled = true;
+    setStatus("connecting…");
+    setLabel("");
+    try {
+      // End any active ElevenLabs voice/text session so we don't double-up audio.
+      await window.CerebroEL?.endActive?.();
+      await waitForSdk();
+      await window.CerebroAvatar.start(videoEl, {
+        onStatus: setStatus,
+        onUserTranscript: (text) => appendTurn("user", text),
+        onAvatarTranscript: (text) => appendTurn("ai", text),
+        onError: (msg) => { setStatus(`error: ${msg}`); setLabel("[ failed ]"); }
+      });
+    } catch (e) {
+      setStatus(`error: ${e.message || e}`);
+      setLabel("[ failed ]");
+      running = false;
+      startBtn.disabled = false;
+    }
+  };
 
-/* ─── video (tavus) ─── */
-function renderVideo() {
-  return `
-    <div class="avatar-view">
-      <div class="avatar-stage">
-        <div class="tavus-frame">
-          <div class="tavus-label">[ tavus avatar ]</div>
-        </div>
-        <div class="status-row">
-          <div class="pulse-dot"></div>
-          <span id="video-status">waiting for widget…</span>
-        </div>
-      </div>
-      <aside class="citation-rail">
-        <div class="eyebrow">
-          <div class="pulse-dot" style="width:6px;height:6px;"></div>
-          // LIVE
-        </div>
-        <div class="citations" id="video-citations"></div>
-      </aside>
-    </div>
-  `;
-}
-
-function mountVideo() {
-  // Tavus CVI widget not yet wired. Once we have a widget snippet, mount it
-  // inside .tavus-frame and POST tool-calls to /api/ask.
+  startBtn?.addEventListener("click", start);
 }
 
 /* ─── review deck ─── */
@@ -2069,6 +2040,85 @@ try {
   };
 } catch (e) {
   console.error("Failed to load @elevenlabs/client:", e);
+}
+</script>
+
+<script type="module">
+// LiveAvatar SDK bridge — exposes window.CerebroAvatar for the avatar mode.
+// LITE-mode session: backend mints a session_token, SDK joins LiveKit room,
+// audio I/O is orchestrated by ElevenLabs Agent on the LiveAvatar side.
+try {
+  const { ElevenLabsAgentSession, SessionEvent, AgentEventsEnum, SessionState } =
+    await import("https://esm.sh/@heygen/liveavatar-web-sdk@0.0.18");
+
+  let active = null;
+
+  window.CerebroAvatar = {
+    async start(videoEl, cb = {}) {
+      if (active) return;
+      // Build an absolute URL — relative paths fail when the page is loaded
+      // as file:// (e.g., Claude Code preview). Falls back to the dev server.
+      const isHttp = location.protocol === "http:" || location.protocol === "https:";
+      const origin = isHttp ? location.origin : "http://localhost:3000";
+      const tokenUrl = `${origin}/api/liveavatar/session-token`;
+      let resp;
+      try {
+        resp = await fetch(tokenUrl, { method: "POST" });
+      } catch (e) {
+        throw new Error(
+          isHttp
+            ? `network: ${e.message || e}`
+            : "Open the page via the Next.js dev server (npm run dev → http://localhost:3000/cerebro.html). The preview can't call the API route."
+        );
+      }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `session-token HTTP ${resp.status}`);
+      }
+      const { session_token } = await resp.json();
+
+      active = new ElevenLabsAgentSession(session_token, { voiceChat: true });
+
+      active.on(SessionEvent.SESSION_STATE_CHANGED, (s) => {
+        if (s === SessionState.CONNECTING) cb.onStatus?.("connecting…");
+        else if (s === SessionState.CONNECTED) cb.onStatus?.("listening…");
+        else if (s === SessionState.DISCONNECTED) cb.onStatus?.("ended");
+      });
+      active.on(SessionEvent.SESSION_STREAM_READY, () => {
+        try { active.attach(videoEl); } catch (e) { cb.onError?.(String(e)); }
+      });
+      active.on(AgentEventsEnum.USER_TRANSCRIPTION, (ev) => {
+        if (ev?.text) cb.onUserTranscript?.(ev.text);
+      });
+      active.on(AgentEventsEnum.AVATAR_TRANSCRIPTION, (ev) => {
+        if (ev?.text) cb.onAvatarTranscript?.(ev.text);
+      });
+      active.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => cb.onStatus?.("speaking…"));
+      active.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => cb.onStatus?.("listening…"));
+      active.on(SessionEvent.SESSION_DISCONNECTED, () => { active = null; cb.onStatus?.("ended"); });
+
+      try {
+        await active.start();
+      } catch (e) {
+        console.error("[CerebroAvatar] start() failed:", e);
+        const detail = [
+          e?.message,
+          e?.status != null ? `status=${e.status}` : null,
+          e?.errorCode != null ? `code=${e.errorCode}` : null,
+        ].filter(Boolean).join(" ");
+        active = null;
+        throw new Error(detail || "session start failed");
+      }
+    },
+
+    async stop() {
+      if (!active) return;
+      try { await active.stop(); } catch {}
+      active = null;
+    },
+  };
+} catch (e) {
+  console.error("Failed to load @heygen/liveavatar-web-sdk:", e);
 }
 </script>
 
