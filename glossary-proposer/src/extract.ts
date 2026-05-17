@@ -4,7 +4,7 @@
 
 export interface GlossaryCandidate {
 	term: string;
-	type: "AGENT" | "CONCEPT";
+	type: "Agent" | "Concept";
 	aliases: string[];
 	frequency: number;
 	sampleQuotes: string[];
@@ -137,7 +137,7 @@ function flushPhrase(parts: string[], out: string[]): void {
  * Classify a candidate term. Returns null for PERSON/ORG patterns (skip those).
  * Returns "AGENT" or "CONCEPT" for terms that belong in the Glossary.
  */
-export function classifyType(term: string): "AGENT" | "CONCEPT" | null {
+export function classifyType(term: string): "Agent" | "Concept" | null {
 	const words = term.split(/\s+/);
 	const lastWord = words[words.length - 1].toLowerCase();
 
@@ -148,11 +148,11 @@ export function classifyType(term: string): "AGENT" | "CONCEPT" | null {
 	if (/\.(com|co|org|net)$/i.test(term)) return null;
 
 	// .ai / .io suffixes → likely tool/agent
-	if (/\.(ai|io)$/i.test(term)) return "AGENT";
+	if (/\.(ai|io)$/i.test(term)) return "Agent";
 
 	// Agent-indicator word → AGENT (check before PERSON to catch "Slack Bot")
 	for (const word of words) {
-		if (AGENT_INDICATORS.has(word.toLowerCase())) return "AGENT";
+		if (AGENT_INDICATORS.has(word.toLowerCase())) return "Agent";
 	}
 
 	// Two-word Title Case like "Sarah Chen" → likely PERSON → skip
@@ -165,7 +165,7 @@ export function classifyType(term: string): "AGENT" | "CONCEPT" | null {
 	}
 
 	// Default to CONCEPT
-	return "CONCEPT";
+	return "Concept";
 }
 
 function extractQuote(body: string, phrase: string): string {
