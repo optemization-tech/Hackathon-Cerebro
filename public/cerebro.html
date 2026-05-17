@@ -2031,14 +2031,26 @@ async function mountGraph() {
     return new Set((adj.get(nodeId) || []).map(n => n.to));
   }
 
+  const TYPE_COLORS = {
+    person: "#1a1a1a", company: "#6b6b6b", decision: "#4e5ffd",
+    insight: "#8b5cf6", signal: "#059669", pattern: "#d97706",
+    strategy: "#dc2626", framework: "#0891b2"
+  };
+  function nodeColor(id) {
+    const n = nodes.find(n => n.id === id);
+    return n ? (TYPE_COLORS[n.type] || "#1a1a1a") : "#1a1a1a";
+  }
+
   function renderTrace() {
     canvas.classList.add("has-hover");
     const adj = buildAdj();
     const pathSet = new Set(tracePath);
     const pathEdges = new Set();
+    const pathEdgeOrder = [];
     for (let i = 0; i < tracePath.length - 1; i++) {
       pathEdges.add(tracePath[i] + "|" + tracePath[i + 1]);
       pathEdges.add(tracePath[i + 1] + "|" + tracePath[i]);
+      pathEdgeOrder.push({ from: tracePath[i], to: tracePath[i + 1] });
     }
 
     const tip = tracePath[tracePath.length - 1];
@@ -2056,6 +2068,22 @@ async function mountGraph() {
     const frontierStrength = new Map();
     (adj.get(tip) || []).forEach(nb => {
       if (frontier.has(nb.to)) frontierStrength.set(nb.to, nb.strength);
+    });
+
+    const defs = d3.select("#graph-svg defs");
+    defs.selectAll(".trace-grad").remove();
+    pathEdgeOrder.forEach((pe, i) => {
+      const grad = defs.append("linearGradient").attr("class", "trace-grad").attr("id", "tg-" + i)
+        .attr("gradientUnits", "userSpaceOnUse");
+      grad.append("stop").attr("offset", "0%").attr("stop-color", nodeColor(pe.from));
+      grad.append("stop").attr("offset", "100%").attr("stop-color", nodeColor(pe.to));
+    });
+    (adj.get(tip) || []).forEach((nb, i) => {
+      if (!frontier.has(nb.to)) return;
+      const grad = defs.append("linearGradient").attr("class", "trace-grad").attr("id", "fg-" + i)
+        .attr("gradientUnits", "userSpaceOnUse");
+      grad.append("stop").attr("offset", "0%").attr("stop-color", nodeColor(tip)).attr("stop-opacity", 0.6);
+      grad.append("stop").attr("offset", "100%").attr("stop-color", nodeColor(nb.to)).attr("stop-opacity", 0.2);
     });
 
     node.style("opacity", d => {
@@ -2076,11 +2104,13 @@ async function mountGraph() {
       return 0;
     });
 
+    const frontierList = [...(adj.get(tip) || [])].filter(nb => frontier.has(nb.to));
+
     link.style("opacity", d => {
       const [s, t] = eid(d);
       const k1 = s + "|" + t, k2 = t + "|" + s;
       if (pathEdges.has(k1) || pathEdges.has(k2)) return 0.9;
-      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 0.15 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 0.3;
+      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 0.12 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 0.35;
       return 0.015;
     });
     link.style("stroke-width", d => {
@@ -2090,11 +2120,47 @@ async function mountGraph() {
       if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 1 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 3;
       return 0.5;
     });
-    link.style("stroke", d => {
+    link.each(function(d) {
       const [s, t] = eid(d);
       const k1 = s + "|" + t, k2 = t + "|" + s;
-      if (pathEdges.has(k1) || pathEdges.has(k2)) return "var(--accent)";
-      return null;
+      const el = d3.select(this);
+      let stroke = null;
+      for (let i = 0; i < pathEdgeOrder.length; i++) {
+        const pe = pathEdgeOrder[i];
+        if ((pe.from === s && pe.to === t) || (pe.from === t && pe.to === s)) {
+          stroke = `url(#tg-${i})`;
+          break;
+        }
+      }
+      if (!stroke && (frontierEdges.has(k1) || frontierEdges.has(k2))) {
+        for (let i = 0; i < frontierList.length; i++) {
+          const nb = frontierList[i];
+          if ((nb.s === s && nb.t === t) || (nb.s === t && nb.t === s) || nb.to === s || nb.to === t) {
+            stroke = `url(#fg-${i})`;
+            break;
+          }
+        }
+      }
+      el.style("stroke", stroke);
+    });
+
+    link.each(function(d) {
+      const el = d3.select(this);
+      if (!el.style("stroke") || el.style("stroke") === "null") return;
+      if (el.style("stroke").startsWith("url(#tg-")) {
+        const sx = typeof d.source === "object" ? d.source.x : 0;
+        const sy = typeof d.source === "object" ? d.source.y : 0;
+        const tx = typeof d.target === "object" ? d.target.x : 0;
+        const ty = typeof d.target === "object" ? d.target.y : 0;
+        const [s] = eid(d);
+        const fromIdx = tracePath.indexOf(s);
+        const gradId = el.style("stroke").match(/url\(#(tg-\d+)\)/)?.[1];
+        if (gradId) {
+          const grad = d3.select("#" + gradId);
+          if (fromIdx >= 0) { grad.attr("x1", sx).attr("y1", sy).attr("x2", tx).attr("y2", ty); }
+          else { grad.attr("x1", tx).attr("y1", ty).attr("x2", sx).attr("y2", sy); }
+        }
+      }
     });
 
     document.getElementById("entity-panel").innerHTML = renderEntityPanel(tip);
@@ -2180,9 +2246,19 @@ async function mountGraph() {
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
         .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
       node.attr("transform", d => `translate(${d.x},${d.y})`);
+      d3.selectAll(".trace-grad").each(function() {
+        const grad = d3.select(this);
+        const id = grad.attr("id");
+        if (!id || !id.startsWith("tg-")) return;
+        const idx = parseInt(id.split("-")[1]);
+        if (idx >= tracePath.length - 1) return;
+        const fromN = nodes.find(n => n.id === tracePath[idx]);
+        const toN = nodes.find(n => n.id === tracePath[idx + 1]);
+        if (fromN && toN) { grad.attr("x1", fromN.x).attr("y1", fromN.y).attr("x2", toN.x).attr("y2", toN.y); }
+      });
     });
 
-  if (state.graphFocus) applyInfluence(state.graphFocus);
+  if (state.graphFocus) { tracePath = [state.graphFocus]; renderTrace(); }
 }
 
 /* ─── speak (voice-only ElevenLabs) ─── */
