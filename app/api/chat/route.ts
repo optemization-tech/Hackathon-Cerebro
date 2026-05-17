@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
-import Anthropic from "@anthropic-ai/sdk";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Anthropic = (require("@anthropic-ai/sdk") as typeof import("@anthropic-ai/sdk")).default;
 import { z } from "zod";
 import { searchDecisions } from "@/lib/tools/decisions";
 import { loadEnv } from "@/lib/env";
