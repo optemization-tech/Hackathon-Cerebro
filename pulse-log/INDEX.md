@@ -16,3 +16,4 @@ Daily session journal for the Hackathon-Cerebro repo. Each line: `date / @author
 - 2026-05-17 / @optemism / pulse-log/05.17/009-optemism-eval-runner-tool.md — Eval runner for Slack brief A/B format comparison: 7 queries x 2 formats via Hindsight reflect (PR #95).
 - 2026-05-17 / @optemism / pulse-log/05.17/010-optemism-slack-brief-write-pipeline.md — Slack brief write pipeline: writeBrief STM upsert + optional Hindsight retain for daily briefs (PR #94).
 - 2026-05-17 / @optemism / pulse-log/05.17/011-optemism-messages-refetch.md — Slack message fetch/bundle library for daily briefs: fetchMessagesInRange, bundleByDay, sparseDayFilter, formatMessageForPrompt (PR #96).
+- 2026-05-17 / @optemism / pulse-log/05.17/012-optemism-slack-brief-ab-experiment.md — A/B experiment execution: ran briefs + eval on #delivery, added quote requirements, fixed STM/eval bugs, decision doc recommends Format A (PR #103).
