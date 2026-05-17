@@ -19,3 +19,4 @@ Daily session journal for the Hackathon-Cerebro repo. Each line: `date / @author
 - 2026-05-17 / @optemism / pulse-log/05.17/012-optemism-slack-brief-ab-experiment.md — A/B experiment execution: ran briefs + eval on #delivery, added quote requirements, fixed STM/eval bugs, decision doc recommends Format A (PR #103).
 - 2026-05-17 / @optemism / pulse-log/05.17/013-optemism-llm-judge-eval.md — LLM-as-judge eval: precision/recall/specificity scoring against source briefs; Format B declared winner (PR #106).
 - 2026-05-17 / @optemism / pulse-log/05.17/014-optemism-clean-meetings-stm.md — Glossary-normalization sweep on 190 "Notion Meetings" STM pages + flip to pending for Hindsight re-indexing (44 cleaned, 189 flipped).
+- 2026-05-17 / @optemism / pulse-log/05.17/015-optemism-cerebro-v1-wave-2-stm-sweep.md — Wave 2 STM sweep: glossary normalization + Person Source backfill across 425 rows, two passes (PR #53).
