@@ -2094,33 +2094,46 @@ async function mountGraph() {
 
   const canvas = container;
 
-  node.on("mouseenter", (ev, d) => {
+  function showConnections(focusId) {
     canvas.classList.add("has-hover");
-    node.style("opacity", n => n.id === d.id ? 1 : 0.15);
-    link.style("opacity", 0.015).style("stroke-width", 0.3);
+    const connected = new Set();
+    const connEdges = new Set();
+    link.each(function(e) {
+      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+      if (s === focusId) { connected.add(t); connEdges.add(e); }
+      if (t === focusId) { connected.add(s); connEdges.add(e); }
+    });
+    node.style("opacity", n => n.id === focusId || connected.has(n.id) ? 1 : 0.1);
+    link.style("opacity", function(e) { return connEdges.has(e) ? 0.5 : 0.015; })
+      .style("stroke-width", function(e) { return connEdges.has(e) ? 1.5 : 0.3; });
+  }
+
+  function resetGraph() {
+    canvas.classList.remove("has-hover");
+    node.style("opacity", 0.85);
+    link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+  }
+
+  node.on("mouseenter", (ev, d) => {
+    if (!state.graphFocus) showConnections(d.id);
   });
   node.on("mouseleave", () => {
-    if (!state.graphFocus) {
-      canvas.classList.remove("has-hover");
-      node.style("opacity", 0.85);
-      link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
-    }
+    if (!state.graphFocus) resetGraph();
   });
+
   function mountPanelListeners() {
     document.querySelectorAll(".fact-item[data-fact-id]").forEach(el => {
       el.addEventListener("mouseenter", () => {
         const parentId = state.graphFocus;
         if (!parentId) return;
         canvas.classList.add("has-hover");
-        node.style("opacity", n => n.id === parentId ? 1 : 0.15);
+        node.style("opacity", n => n.id === parentId ? 1 : 0.1);
         link.style("opacity", 0.015).style("stroke-width", 0.3);
         el.classList.add("highlighted");
       });
       el.addEventListener("mouseleave", () => {
         el.classList.remove("highlighted");
-        canvas.classList.remove("has-hover");
-        node.style("opacity", 0.85);
-        link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+        if (state.graphFocus) showConnections(state.graphFocus);
       });
     });
     document.querySelectorAll(".fact-item[data-node-id]").forEach(el => {
@@ -2128,22 +2141,19 @@ async function mountGraph() {
         const nid = el.dataset.nodeId;
         if (!nid) return;
         state.graphFocus = nid;
+        showConnections(nid);
         document.getElementById("entity-panel").innerHTML = renderEntityPanel(nid);
         mountPanelListeners();
-        canvas.classList.add("has-hover");
-        node.style("opacity", n => n.id === nid ? 1 : 0.15);
-        link.style("opacity", 0.015).style("stroke-width", 0.3);
       });
       el.addEventListener("mouseenter", () => {
         const nid = el.dataset.nodeId;
         canvas.classList.add("has-hover");
-        node.style("opacity", n => n.id === nid ? 1 : 0.15);
+        node.style("opacity", n => n.id === nid || n.id === state.graphFocus ? 1 : 0.1);
         link.style("opacity", 0.015).style("stroke-width", 0.3);
       });
       el.addEventListener("mouseleave", () => {
-        canvas.classList.remove("has-hover");
-        node.style("opacity", 0.85);
-        link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+        if (state.graphFocus) showConnections(state.graphFocus);
+        else resetGraph();
       });
     });
   }
@@ -2151,6 +2161,7 @@ async function mountGraph() {
   node.on("click", (ev, d) => {
     ev.stopPropagation();
     state.graphFocus = d.id;
+    showConnections(d.id);
     document.getElementById("entity-panel").innerHTML = renderEntityPanel(d.id);
     mountPanelListeners();
   });
