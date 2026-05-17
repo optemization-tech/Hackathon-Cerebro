@@ -1,0 +1,7 @@
+node_modules/
+dist/
+workers.json
+.env
+.env.local
+scripts/data/
+*.meetings.json

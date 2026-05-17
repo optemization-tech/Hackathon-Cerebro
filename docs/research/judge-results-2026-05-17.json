@@ -1,0 +1,342 @@
+{
+  "meta": {
+    "eval_results_path": "docs/research/eval-results-2026-05-17-rerun.json",
+    "source_briefs": {
+      "format_a": 27,
+      "format_b": 27
+    },
+    "judge_model": "claude-sonnet-4-20250514",
+    "timestamp": "2026-05-17T15:40:58.117Z"
+  },
+  "summary": {
+    "tally": {
+      "a": 2,
+      "b": 4,
+      "tie": 1,
+      "error": 0
+    },
+    "format_a": {
+      "total_items": 131,
+      "avg_items": 18.7,
+      "avg_precision": 0.36,
+      "avg_recall": 0.44,
+      "avg_specificity": 3.6,
+      "total_hallucinations": 83
+    },
+    "format_b": {
+      "total_items": 98,
+      "avg_items": 14,
+      "avg_precision": 0.44,
+      "avg_recall": 0.41,
+      "avg_specificity": 3.1,
+      "total_hallucinations": 61
+    }
+  },
+  "queries": [
+    {
+      "query": "What decisions has the Optemization team made in the last week, and who drove each one?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 19,
+          "precision": 0.89,
+          "recall": 0.85,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline stabilization",
+            "STOP and Wait protocol",
+            "Bond automated AI-bot alerts",
+            "Hasty (AI Agent)"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 8,
+          "precision": 1,
+          "recall": 0.45,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline",
+            "STOP and Wait protocol",
+            "firefighter mode",
+            "recruiting a new Notion Workspace Developer",
+            "Hasty Haghkhah"
+          ]
+        },
+        "winner": "a",
+        "reasoning": "Answer A captures significantly more discrete facts from the source briefs with higher recall, despite some hallucinated claims. Answer B has perfect precision but severely limited coverage of the actual decisions made."
+      }
+    },
+    {
+      "query": "What stress signals or blockers has the team flagged recently?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 28,
+          "precision": 0.64,
+          "recall": 0.75,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "team is operating in a high-intensity \"firefighter mode\"",
+            "mandatory \"STOP and Wait\" protocol for all major architectural decisions",
+            "departure of an external contractor has further increased cognitive load",
+            "Asana Fatigue consistently reported as operational slowdown",
+            "mandatory 3–7 day lead times for Notion workspace exports",
+            "STM-to-Hindsight pipeline causing metadata pollution",
+            "CTLE and Invoicing automations failing",
+            "Attio Webhook fix overdue",
+            "network security allowlisting issues",
+            "PicnicHealth blocked by missing Contract Sign Date field",
+            "active interviewing for full-time remote Notion Workspace Developer",
+            "consolidating AI-bot alerts under Bond identity",
+            "department-by-department rollout model for Workspace Reset"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 25,
+          "precision": 0.68,
+          "recall": 0.72,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "team is operating in high-intensity \"firefighter mode\"",
+            "mandatory \"STOP and Wait\" protocol for all major architectural decisions",
+            "active recruitment for full-time remote Notion Workspace Developer",
+            "3–7 day lead times for Notion workspace exports",
+            "STM-to-Hindsight pipeline causing metadata pollution",
+            "Attio Webhook fix overdue since May 6",
+            "network security allowlisting for *.notion.com",
+            "Leslie Institute Discovery at risk due to legacy knowledge gaps",
+            "PicnicHealth blocked by missing Contract Sign Date field",
+            "moving toward formal hierarchy with Project Manager role",
+            "unifying AI-bot alerts under Bond identity"
+          ]
+        },
+        "winner": "b",
+        "reasoning": "Both answers contain extensive hallucinations, but Answer B has slightly better precision (68% vs 64%) and fewer total hallucinated claims while maintaining comparable recall and specificity."
+      }
+    },
+    {
+      "query": "Who are the key people the team has been interacting with, and what are their current concerns?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 25,
+          "precision": 0.16,
+          "recall": 0.15,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "The Optemization team is operating in 'firefighter mode'",
+            "STM-to-Hindsight pipeline metadata and data extraction errors",
+            "AIVC contact is Temirlan Nugmanov",
+            "Bellesa contacts are Kamau Muata & Luiza Cantini",
+            "Temporal contact is Skyler Birk-Stachon",
+            "Leslie Institute contact is Hasty Haghkhah",
+            "PicnicHealth contact is Carol",
+            "STOP and Wait protocol for architectural decisions",
+            "Recent departure of external contractor",
+            "Recruitment for full-time remote Notion Workspace Developer",
+            "Notion mandatory 3-7 day lead times",
+            "Asana fatigue causing operational slowdowns",
+            "Attio Webhook fix pending since May 6",
+            "Network Security allowlisting for *.notion.com",
+            "Slack identity 'Bond' for automated bot alerts",
+            "PicnicHealth development blocked by missing Contract Sign Date field",
+            "Leslie Institute discovery stalled due to role ambiguity",
+            "Bellesa workspace redundancy issues",
+            "Temporal evaluating teamspace structure for 500-1,000 members",
+            "Mouse personal dashboards for team members"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 20,
+          "precision": 0.2,
+          "recall": 0.18,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "The Optemization team is operating in 'firefighter mode'",
+            "STM-to-Hindsight pipeline infrastructure stabilization",
+            "STOP and Wait protocol for architectural decisions",
+            "Capacity strain and burnout due to manual onboarding",
+            "Temporal workspace audit blocked by 3-7 day lead times",
+            "PicnicHealth Cascade Engine blocked by missing Contract Sign Date field",
+            "Leslie Institute at risk due to role ambiguity",
+            "OOTC Team (Phil, Peter, and James)",
+            "Recruitment for full-time Notion Workspace Developer",
+            "Asana fatigue impacting workflow speed",
+            "Attio Webhook fix overdue since May 6",
+            "Network Security allowlisting for *.notion.com overdue",
+            "Unit-based rollout model for Temporal",
+            "PicnicHealth automation outages affecting trust"
+          ]
+        },
+        "winner": "tie",
+        "reasoning": "Both answers heavily hallucinate content not present in the source briefs, creating fictional narratives about 'firefighter mode,' infrastructure issues, and client contacts that don't exist in the actual documents. While Answer A provides more specific details, most are fabricated, making both answers unreliable despite their apparent sophistication."
+      }
+    },
+    {
+      "query": "What strategies or approaches is the team actively pursuing across engagements?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 11,
+          "precision": 0.27,
+          "recall": 0.4,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline refactoring to resolve metadata pollution and data extraction errors",
+            "Project Manager role to separate technical implementation from client communication",
+            "Genetic Development Model for developing team members",
+            "Support Grace Periods - paid two-week grace period at end of 14-week engagements",
+            "Bond as unified Slack identity for AI-bot alerts",
+            "PARA framework adoption for organization",
+            "Asana for task management with one-way sync to Notion",
+            "Notion Workspace Developer recruitment (full-time, remote)",
+            "3-7 day lead time for workspace exports"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 15,
+          "precision": 0.47,
+          "recall": 0.6,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "May 17, 2026 date reference",
+            "15+ active engagements",
+            "STM-to-Hindsight pipeline refactoring",
+            "Project Manager role formalization",
+            "Bond as unified Slack identity",
+            "PARA framework adoption",
+            "Notion Workspace Developer recruitment with interviews beginning week of May 18, 2026",
+            "3-7 day lead times for Notion workspace exports",
+            "one project at a time policy",
+            "Sev 1-4 escalation path",
+            "AIVC, Bellesa, Leslie Institute, PicnicHealth engagement details",
+            "Attio Webhook fix overdue since May 6",
+            "Network Security allowlisting for *.notion.com"
+          ]
+        },
+        "winner": "b",
+        "reasoning": "Answer B has higher precision (47% vs 27%) and recall (60% vs 40%), capturing more factual details from the source material like the unit-based rollout model, Workspace Health Reports, and specific client work, while Answer A contains more fabricated infrastructure claims not found in the source briefs."
+      }
+    },
+    {
+      "query": "What recurring patterns has the team exhibited — things that keep coming up across channels?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 18,
+          "precision": 0.33,
+          "recall": 0.35,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline",
+            "STOP and Wait Protocol",
+            "Attio Webhook fix since early May",
+            "network security allowlisting",
+            "Asana Fatigue",
+            "3–7 day wait for Notion workspace exports",
+            "Project Manager role decoupling",
+            "Genetic Development Model",
+            "Bond AI-bot identity",
+            "Notion Workspace Developer recruitment",
+            "PARA framework adoption",
+            "leading with a working demo"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 22,
+          "precision": 0.32,
+          "recall": 0.45,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline",
+            "STOP and Wait Protocol",
+            "Notion Workspace Developer recruitment",
+            "Bond AI-bot identity",
+            "Project Manager role decoupling",
+            "Design Sprints pivot",
+            "3–7 day lead time for Notion workspace exports",
+            "Asana Fatigue",
+            "PARA framework",
+            "working demos approach"
+          ]
+        },
+        "winner": "b",
+        "reasoning": "Answer B has better recall of actual patterns from the briefs (daily check-ins, automation issues, migration challenges) while Answer A contains more completely fabricated technical details and systems not mentioned anywhere in the source material."
+      }
+    },
+    {
+      "query": "What insights or realizations have team members articulated recently?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 12,
+          "precision": 0.25,
+          "recall": 0.3,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "They are formalizing a dedicated Project Manager role to decouple technical implementation from communication/DRI duties",
+            "They are recruiting for a remote Notion Workspace Developer",
+            "They are unifying automated AI-bot alerts under a single Slack identity 'Bond'",
+            "They have adopted a mandatory 'STOP and Wait' protocol for major architectural decisions",
+            "They are moving toward a department-by-department rollout model for their 'Workspace Reset' service",
+            "They are shifting from 'janky' demo decks to a 'lead with a working demo' philosophy",
+            "They are proposing a two-week paid 'grace period' at the conclusion of engagements",
+            "Team members have reported anxiety stemming from role ambiguity",
+            "STM-to-Hindsight pipeline"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 8,
+          "precision": 0.375,
+          "recall": 0.45,
+          "specificity": 3,
+          "hallucinated_claims": [
+            "STM-to-Hindsight pipeline",
+            "They consciously decided to rephrase survey questions about Notion usage to focus on 'actionable concerns' rather than 'sentiment'",
+            "Hasty Haghkhah expressed candid anxiety regarding project load",
+            "Consolidating all AI-bot alerts under the Slack identity 'Bond'",
+            "'STOP and Wait' Protocol: A mandatory pause on all major architectural decisions",
+            "Proposing a paid two-week 'grace period' at the end of engagements"
+          ]
+        },
+        "winner": "b",
+        "reasoning": "Answer B has better precision (0.375 vs 0.25) and recall (0.45 vs 0.3) while making fewer false claims. Both answers hallucinate significant details not found in the source briefs, but Answer B stays closer to actual documented insights like Esteban's adoption framework and Tem's automation troubleshooting observations."
+      }
+    },
+    {
+      "query": "What open tasks or follow-ups are pending, and who owns each?",
+      "judgment": {
+        "answer_a": {
+          "discrete_items": 18,
+          "precision": 0,
+          "recall": 0.3,
+          "specificity": 4,
+          "hallucinated_claims": [
+            "Optemization team is operating in 'firefighter mode'",
+            "mandatory 'STOP and Wait' protocol for major architectural decisions",
+            "Attio Webhook Fix outstanding since May 6, 2026",
+            "Network Security Allowlisting (*.notion.com) is overdue",
+            "Outlook-Notion Integration Research by Kamau Muata overdue since late April",
+            "RC Willenbrock tasked to review Cerebro Demo",
+            "Skyler Birk-Stachon blocked on Temporal Workspace Audit",
+            "Carol blocked on PicnicHealth Cascade Engine",
+            "Engagement Wrap-Up Checklist is urgent and unassigned",
+            "Bryan blocked on n8n VPS Sync Implementation",
+            "Notion Permissions bug #5295992",
+            "AIVC Engagement (should be Mouse)",
+            "Interviews for Notion Workspace Developer begin week of May 18",
+            "STM-to-Hindsight pipeline",
+            "Hasty Haghkhah as full name",
+            "All major architectural changes halted"
+          ]
+        },
+        "answer_b": {
+          "discrete_items": 0,
+          "precision": 0,
+          "recall": 0,
+          "specificity": 1,
+          "hallucinated_claims": [
+            "JSON structure with memory_ids and mental_model_ids",
+            "All UUID references"
+          ]
+        },
+        "winner": "a",
+        "reasoning": "Answer A provides substantive content and captures some real tasks/owners from the source material, despite significant hallucinations. Answer B provides no useful information about pending tasks or follow-ups."
+      }
+    }
+  ]
+}
