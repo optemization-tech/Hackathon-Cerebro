@@ -1365,12 +1365,15 @@ function transformHindsightGraph(raw) {
 
   const visualNodes = [];
 
-  for (const [, en] of entityNodes) {
+  const allEntities = [...entityNodes.values()];
+  for (const en of allEntities) {
     en.factCount = en.connections.size;
     for (const fid of en.connections) { const f = factMap.get(fid); if (f) en.facts.push(f); }
     en.facts = en.facts.slice(0, 15);
-    if (en.factCount >= 3) visualNodes.push(en);
   }
+  allEntities.sort((a, b) => b.factCount - a.factCount);
+  const entityCut = Math.ceil(allEntities.length * 0.6);
+  for (const en of allEntities.slice(0, entityCut)) visualNodes.push(en);
 
   const typeBuckets = new Map();
   for (const [, tn] of typeNodes) {
@@ -1380,7 +1383,7 @@ function transformHindsightGraph(raw) {
   }
   for (const [type, bucket] of typeBuckets) {
     bucket.sort((a, b) => b.factCount - a.factCount);
-    const top = bucket.slice(0, 15);
+    const top = bucket.slice(0, Math.ceil(bucket.length * 0.6));
     for (const tn of top) visualNodes.push(tn);
   }
 
@@ -1935,16 +1938,21 @@ async function mountGraph() {
     strategy: "#ef4444", framework: "#06b6d4"
   };
 
-  const CLUSTER_POSITIONS = {
-    decision:  { x: 0.5,  y: 0.5  },
-    person:    { x: 0.15, y: 0.35 },
-    company:   { x: 0.85, y: 0.3  },
-    signal:    { x: 0.2,  y: 0.75 },
-    insight:   { x: 0.8,  y: 0.7  },
-    pattern:   { x: 0.5,  y: 0.88 },
-    strategy:  { x: 0.15, y: 0.9  },
-    framework: { x: 0.85, y: 0.9  }
+  const CLUSTER_GROUPS = {
+    person: "dossiers", company: "dossiers",
+    decision: "actions", project: "actions", task: "actions",
+    insight: "intelligence", signal: "intelligence", pattern: "intelligence",
+    strategy: "intelligence", framework: "intelligence"
   };
+  const GROUP_POSITIONS = {
+    dossiers:     { x: 0.18, y: 0.4,  label: "// DOSSIERS" },
+    actions:      { x: 0.5,  y: 0.45, label: "// ACTIONS" },
+    intelligence: { x: 0.82, y: 0.4,  label: "// INTELLIGENCE" }
+  };
+  const CLUSTER_POSITIONS = {};
+  for (const [type, group] of Object.entries(CLUSTER_GROUPS)) {
+    CLUSTER_POSITIONS[type] = GROUP_POSITIONS[group] || GROUP_POSITIONS.actions;
+  }
 
   const af = state.graphFilter;
   const nodes = state.graphData.nodes
@@ -1961,16 +1969,14 @@ async function mountGraph() {
   const g = svg.append("g");
   svg.call(d3.zoom().scaleExtent([0.15, 6]).on("zoom", (ev) => g.attr("transform", ev.transform)));
 
-  const clusterTypes = [...new Set(nodes.map(n => n.type))];
-  clusterTypes.forEach(type => {
-    const cp = CLUSTER_POSITIONS[type] || { x: 0.5, y: 0.5 };
+  Object.entries(GROUP_POSITIONS).forEach(([group, gp]) => {
     g.append("text")
       .attr("class", "graph-node-label")
-      .attr("x", cp.x * W).attr("y", cp.y * H - 60)
+      .attr("x", gp.x * W).attr("y", gp.y * H - 70)
       .attr("text-anchor", "middle")
       .style("font-size", "10px").style("letter-spacing", "0.15em").style("text-transform", "uppercase")
-      .style("fill", TYPE_COLORS[type] || "#999").style("opacity", 0.5)
-      .text("// " + (TYPE_LABELS[type] || type));
+      .style("fill", "var(--ink-muted)").style("opacity", 0.45)
+      .text(gp.label);
   });
 
   const link = g.selectAll(".graph-link").data(edges).join("line")
@@ -2000,10 +2006,10 @@ async function mountGraph() {
   node.each(function(d) {
     const el = d3.select(this);
     const deg = degree.get(d.id) || 1;
-    const r = 3 + Math.pow(deg / maxDeg, 0.5) * 18;
+    const r = 2 + Math.pow(deg / maxDeg, 0.5) * 12;
     d._r = r;
     el.append("circle").attr("r", r).attr("fill", TYPE_COLORS[d.type] || "#999").attr("opacity", 0.8);
-    if (r > 8) {
+    if (r > 6) {
       el.append("text").attr("class", "graph-node-label").attr("y", r + 10)
         .attr("text-anchor", "middle").style("font-size", "9px")
         .text(d.label.length > 20 ? d.label.slice(0, 18) + "..." : d.label);
@@ -2059,16 +2065,16 @@ async function mountGraph() {
     nodes.forEach(d => {
       const cp = CLUSTER_POSITIONS[d.type] || { x: 0.5, y: 0.5 };
       const cx = cp.x * W, cy = cp.y * H;
-      d.vx += (cx - d.x) * alpha * 0.15;
-      d.vy += (cy - d.y) * alpha * 0.15;
+      d.vx += (cx - d.x) * alpha * 0.12;
+      d.vy += (cy - d.y) * alpha * 0.12;
     });
   }
 
   graphSim = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(edges).id(d => d.id).distance(60).strength(d => 0.02 + (d.strength || 0) * 0.08))
-    .force("charge", d3.forceManyBody().strength(-60))
+    .force("charge", d3.forceManyBody().strength(-40))
     .force("cluster", clusterForce)
-    .force("collision", d3.forceCollide().radius(d => (d._r || 5) + 6))
+    .force("collision", d3.forceCollide().radius(d => (d._r || 3) + 4))
     .alphaDecay(0.02)
     .on("tick", () => {
       link
