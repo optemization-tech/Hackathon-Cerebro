@@ -13,23 +13,24 @@ Last updated: 2026-05-17 (hackathon day 2, demo Sunday evening)
 - [x] Branch protection + ship workflow + auto-merge working
 - [x] Notion swipe deck live at `/api/deck` (PR #19)
 
-## What's not built yet (hackathon must-ship)
+## In progress
 
 - [ ] Shared cleaning library (`clean(content, glossary)`) — spec calls this MUST-ship
 - [ ] Glossary DB seeded with ~15 entries in Notion
-- [x] Hindsight Indexer Worker (`indexer/`) — polls STM Status=pending, calls `retain()` (sync), flips to indexed/failed. Needs deploy.
+- [x] Hindsight Indexer Worker (`indexer/`) — polls STM Status=pending, calls `retain()` (sync), flips to indexed/failed. Ready for deploy.
 - [ ] Cerebro Sync Worker — receives Hindsight webhooks, classifies facts, writes to LTM DBs
 - [ ] Ask Cerebro Custom Agent + `askCerebro` tool
 - [ ] Q&A API (`/api/ask`) — calls Hindsight `reflect()`
-- [ ] Tavus avatar page (`/avatar`)
+- [ ] HeyGen avatar page (`/avatar`)
 - [ ] ElevenLabs voice surface
 - [ ] Graph viz page (`/graph`)
 
-## What's stretch
+## Post-hackathon roadmap
 
-- [ ] Granola or Circleback source worker
-- [x] Notion-Docs source worker (`notion-docs/`) — built, retains directly to Hindsight (bypasses STM). Needs deploy.
-- [x] Glossary Proposer worker (`glossary-proposer/`) — scans STM bodies, extracts AGENT/CONCEPT candidates, writes Proposed rows to Glossary DB. Needs deploy + Status property on Glossary DB.
+- [x] Granola source worker (`granola/`) — ingesting Granola.so meeting recordings into STM
+- [ ] Circleback source worker
+- [x] Notion-Docs source worker (`notion-docs/`) — built, retains directly to Hindsight (bypasses STM). Ready for deploy.
+- [x] Glossary Proposer worker (`glossary-proposer/`) — scans STM bodies, extracts AGENT/CONCEPT candidates, writes Proposed rows to Glossary DB. Ready for deploy.
 - [ ] Companies, Strategies, Patterns LTM DBs populated
 - [ ] Force-directed graph with live data
 
