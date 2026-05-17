@@ -162,10 +162,9 @@ export async function writeBrief(
 	}
 
 	const properties: Record<string, unknown> = {
-		Name: { title: [{ type: "text", text: { content: title } }] },
+		Nam: { title: [{ type: "text", text: { content: title } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Slack daily brief" } },
-		Source: { select: { name: "Slack" } },
 		Status: { select: { name: "pending" } },
 		Metadata: {
 			rich_text: [{ type: "text", text: { content: JSON.stringify(metadata) } }],
