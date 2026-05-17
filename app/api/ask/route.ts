@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { searchMemory } from "@/lib/search";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,19 +48,6 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const { question, scope } = parsed.data;
-
-  // TODO: replace with Hindsight reflect() against bank `Cerebro`.
-  // Stub response matches the contract in docs/specs/cerebro.md (line 452):
-  // { answer: string, citations: [{ memoryId, title, url }] }
-  return NextResponse.json({
-    answer: `Stubbed answer to: "${question}"${scope?.engagement ? ` (scoped to ${scope.engagement})` : ""}. Hindsight reflect() not yet wired — once it is, this returns a grounded answer with citations from Short-Term Memory.`,
-    citations: [
-      {
-        memoryId: "stm:stub-001",
-        title: "Example Slack thread (stub)",
-        url: "https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d",
-      },
-    ],
-  });
+  const records = await searchMemory(parsed.data.question, 30);
+  return NextResponse.json({ records });
 }
