@@ -98,7 +98,7 @@ type RowShape = {
 };
 
 function buildTagsForRow(row: RowShape): string[] {
-	const tags = ["team:optemization"];
+	const tags: string[] = [];
 	if (row.personSourceSlug && row.personSourceSlug !== "unknown") {
 		tags.push(`person-source:${row.personSourceSlug}`);
 	}
