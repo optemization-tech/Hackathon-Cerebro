@@ -30,3 +30,4 @@ yarn-error.log*
 .idea/
 .vscode/
 .claude/worktrees/
+.gstack/

@@ -57,15 +57,17 @@ const ENTITY_LABELS = [
       { value: "decision",  description: "What was decided, why, scope, who decided." },
       { value: "framework", description: "Reusable mental model articulated by a person." },
       { value: "strategy",  description: "Applied approach with lifecycle state." },
-      { value: "insight",   description: "Conscious cognitive realization, tied to source moment." },
-      { value: "pattern",   description: "Behavioral repetition, often unconscious." },
-      { value: "signal",    description: "Observed indicator: stress marker, friction point, deadline, blocker." },
+      { value: "insight",   description: "Conscious in-the-moment realization articulated by a human, tied to the source moment." },
+      { value: "pattern",   description: "Behavioral repetition Cerebro infers across many facts; subjects may not be aware." },
+      { value: "signal",    description: "Atomic event worth noticing — raw observation, metric reading, or Cerebro-emitted meta-event." },
+      { value: "objective", description: "Bounded target the team commits to: an OKR objective or key result with a verdict." },
+      { value: "metric",    description: "Durable named measurement tracked over time (e.g. AIVC NPS, weekly active engagements)." },
     ],
   },
   {
     key: "status",
     type: "value",
-    description: "Lifecycle state of decisions, strategies, tasks, projects.",
+    description: "Lifecycle state of decisions, strategies, tasks, projects, objectives.",
     optional: true,
     tag: true,
     values: [
@@ -78,6 +80,9 @@ const ENTITY_LABELS = [
       { value: "committed", description: "Team has committed to this." },
       { value: "reversed",  description: "Previously committed, now reversed." },
       { value: "blocked",   description: "Cannot proceed, waiting on something." },
+      { value: "hit",       description: "Objective met its target." },
+      { value: "missed",    description: "Objective did not meet its target by the deadline." },
+      { value: "abandoned", description: "Objective deliberately walked away from before verdict." },
     ],
   },
   {
@@ -90,6 +95,26 @@ const ENTITY_LABELS = [
       { value: "positive", description: "Favorable indicator." },
       { value: "negative", description: "Unfavorable indicator or warning." },
       { value: "neutral",  description: "Informational, no directional charge." },
+    ],
+  },
+  {
+    // Closed vocabulary, seeded here, customized per workspace at onboarding, then stable.
+    key: "signal_kind",
+    type: "value",
+    description:
+      "When unit_type includes 'signal', the specific kind of attention event. Closed vocabulary — seeded here, customized per workspace at onboarding, then stable.",
+    optional: true,
+    tag: true,
+    values: [
+      { value: "source_observation",             description: "Qualitative observation extracted directly from raw source data." },
+      { value: "metric_reading",                 description: "A quantitative datapoint that updates a Metric — references the parent Metric row." },
+      { value: "pattern_emerged",                description: "A new Pattern just crystallized after enough supporting facts." },
+      { value: "framework_candidate",            description: "Cerebro suggests an Insight or Pattern is durable enough to be named as a Framework; human accepts or declines." },
+      { value: "framework_applied",              description: "A Strategy was created that applies an existing Framework." },
+      { value: "framework_pattern_contradiction", description: "A Pattern contradicts an in-flight Framework — high severity, surfaces the tension." },
+      { value: "strategy_verdict",               description: "A Strategy got its verdict (proven or disproven)." },
+      { value: "pattern_recognized_by_human",    description: "A human articulated an Insight that recognizes a Pattern Cerebro had already inferred." },
+      { value: "objective_at_risk",              description: "A metric reading crossed an Objective threshold in the wrong direction." },
     ],
   },
 ];
