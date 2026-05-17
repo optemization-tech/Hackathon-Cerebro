@@ -6,3 +6,4 @@ Daily session journal for the Hackathon-Cerebro repo. Each line: `date / @author
 - 2026-05-16 / @optemism / pulse-log/05.16/002-optemism-cerebro-v1-wave-2-circleback-cleaner.md — Wave 2 (narrowed): Circleback worker new + slack/google cleaner wire-in (PR #32); U8 + U10 parked for follow-up.
 - 2026-05-16 / @optemism / pulse-log/05.16/003-optemism-cerebro-v1-wave-2-cleanup.md — Wave 2 cleanup: drop Entities from STM/workers/lib/cleaning/spec; align Circleback ID to uuidv5; migration script ready (PR #46).
 - 2026-05-17 / @optemism / pulse-log/05.17/001-optemism-trace-source-notion-hindsight.md — Traced source:notion Hindsight content to parked Wave 2 indexer; established data-type-only tag convention; backlogged cleanup.
+- 2026-05-17 / @optemism / pulse-log/05.17/002-optemism-stm-hindsight-pipeline-u1-align-conventions.md — Wave 1, Session 1.1: align Status/bank/Source conventions for STM→Hindsight pipeline (PR #54).
