@@ -1411,7 +1411,6 @@ function transformHindsightGraph(raw) {
 
   const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
   const visualEdges = rawEdges
-    .slice(0, 200)
     .map(e => ({ ...e, strength: maxC > 1 ? Math.pow(e.count / maxC, 0.35) : 0.5 }));
 
   const connectedIds = new Set();
