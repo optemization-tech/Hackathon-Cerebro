@@ -123,6 +123,7 @@ Unresolved questions, pending discussions, topics that need follow-up. Include w
 Rules:
 - Attribute every claim to the person who said it (e.g., "Alice noted that…", "Per Bob's update…").
 - Preserve specifics: names, numbers, dates, URLs, tool names. Never generalize away detail.
+- Include key verbatim quotes from messages that carry signal — decisions stated in someone's own words, colorful phrasing, strong opinions, technical conclusions. Use "quoted text" with attribution. Aim for 3–8 quotes per brief depending on channel activity. Quotes preserve voice and evidence that summaries destroy.
 - If a thread produced a decision, put it in Decisions, not Open Threads.
 - Each bullet should be a self-contained fact that makes sense without the surrounding context.
 - Do not editorialize or add information not present in the transcript.
@@ -150,12 +151,13 @@ Write 3–5 paragraphs in temporal order covering the day's activity. The narrat
 
 1. Follow the natural flow of the day — what happened first, what followed, how threads evolved.
 2. Attribute every claim to the person who said it (e.g., "Alice kicked off the morning by sharing…", "Later, Bob flagged…").
-3. Preserve specifics: names, numbers, dates, URLs, tool names, exact quotes when impactful. Never generalize away detail.
-4. Weave in decisions, action items, and open questions naturally rather than listing them.
-5. Stay under 600 words.
-6. Do not editorialize or add information not present in the transcript.
-7. Do not use bullet points or section headers — this is prose.
-8. End with any unresolved threads or questions that carry into the next day.
+3. Preserve specifics: names, numbers, dates, URLs, tool names. Never generalize away detail.
+4. Include key verbatim quotes — the actual words people used for decisions, strong opinions, technical conclusions, or colorful phrasing. Use "quoted text" inline with attribution. Aim for 3–8 quotes per brief depending on channel activity. The brief should preserve voice and evidence, not just gist.
+5. Weave in decisions, action items, and open questions naturally rather than listing them.
+6. Stay under 800 words.
+7. Do not editorialize or add information not present in the transcript.
+8. Do not use bullet points or section headers — this is prose.
+9. End with any unresolved threads or questions that carry into the next day.
 
 The tone is professional and direct — a well-briefed colleague summarizing the day, not a news reporter.`;
 

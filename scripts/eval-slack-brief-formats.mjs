@@ -78,15 +78,12 @@ const DEFAULT_MANIFEST = [
 // --- Hindsight reflect ---
 
 async function reflect(query, formatTag, budget) {
-  const url = `${API_URL}/v1/${NAMESPACE}/banks/${encodeURIComponent(BANK_ID)}/memories/reflect`;
+  const url = `${API_URL}/v1/${NAMESPACE}/banks/${encodeURIComponent(BANK_ID)}/reflect`;
   const body = {
     query,
     tags: [formatTag, "source:slack"],
-    tags_match: { all: [formatTag, "source:slack"] },
+    tags_match: "all",
     budget: budget || "mid",
-    include: {
-      based_on: true,
-    },
   };
 
   if (DRY_RUN) {
