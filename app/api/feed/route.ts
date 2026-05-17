@@ -5,6 +5,11 @@ import { loadEnv } from "@/lib/env";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// 60-second stale-while-revalidate: clients get a cached response instantly
+// while Next.js refreshes in the background. Notion data is not real-time, so
+// a 60s window is safe and cuts Notion API calls significantly under load.
+const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
+
 const CATEGORIES = {
   people: "NOTION_PEOPLE_DB_ID",
   companies: "NOTION_COMPANIES_DB_ID",
@@ -23,7 +28,6 @@ const CATEGORIES = {
 type Category = keyof typeof CATEGORIES;
 
 export async function GET(request: Request): Promise<Response> {
-  const env = loadEnv();
   const url = new URL(request.url);
   const category = (url.searchParams.get("category") as Category | null) ?? "decisions";
 
@@ -31,7 +35,17 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "unknown category" }, { status: 400 });
   }
 
-  const dbId = env[CATEGORIES[category]];
-  const records = await listRecentRecords(dbId, 50);
-  return NextResponse.json({ category, records });
+  try {
+    const env = loadEnv();
+    const dbId = env[CATEGORIES[category]];
+    const records = await listRecentRecords(dbId, 50);
+    return NextResponse.json(
+      { category, records },
+      { headers: { "Cache-Control": CACHE_CONTROL } },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "internal error";
+    console.error("[/api/feed] error:", message);
+    return NextResponse.json({ error: "failed to fetch feed" }, { status: 500 });
+  }
 }
