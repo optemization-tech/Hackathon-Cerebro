@@ -1,0 +1,1854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>cerebro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-paper: #F7F4EF;
+    --bg-paper-deep: #EFEAE0;
+    --ink: #1A1A1A;
+    --ink-soft: #4A4A48;
+    --ink-muted: #8A857C;
+    --accent: #4E5FFD;
+    --accent-ink: #2D3AC9;
+    --rule: #DDD6C7;
+    --src-slack: #611f69;
+    --src-granola: #E8722C;
+    --src-gmail: #D14836;
+    --src-circleback: #16A085;
+    --src-gcal: #4285F4;
+    --src-notion: #1A1A1A;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Inter', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --shadow-soft: 0 30px 60px -30px rgba(26,26,26,0.18), 0 18px 36px -18px rgba(26,26,26,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg-paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── top bar ─── */
+  .topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    position: sticky;
+    top: 0;
+    background: var(--bg-paper);
+    z-index: 100;
+    position: sticky;
+  }
+  .topbar::after {
+    content: '';
+    position: absolute;
+    left: 32px;
+    bottom: -1px;
+    width: 64px;
+    height: 1px;
+    background: var(--accent);
+  }
+  .wordmark {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    letter-spacing: 0.02em;
+  }
+  .wordmark .mark { color: var(--accent); margin-right: 4px; }
+  .wordmark:hover { color: var(--accent); }
+  .user-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .user-pill:hover { color: var(--ink); }
+  .avatar-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg-paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  /* ─── main container ─── */
+  main { min-height: calc(100vh - 56px); }
+
+  /* ─── home view ─── */
+  .home {
+    min-height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 32px;
+    animation: fadein 200ms ease;
+  }
+  .home-inner { width: 100%; max-width: 720px; }
+  .prompt-headline {
+    font-family: var(--serif);
+    font-size: 56px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 40px;
+  }
+  .prompt-headline em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .prompt-input-wrap {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 14px;
+    margin-bottom: 24px;
+    transition: border-color 200ms, box-shadow 300ms;
+    position: relative;
+  }
+  .prompt-input-wrap::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 0;
+    height: 1px;
+    background: var(--accent);
+    transition: width 300ms ease;
+  }
+  .prompt-input-wrap:focus-within::after { width: 100%; }
+  .prompt-input-wrap:focus-within {
+    box-shadow: 0 8px 32px -16px rgba(78, 95, 253, 0.25);
+  }
+  .prompt-input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--serif);
+    font-size: 22px;
+    font-style: italic;
+    color: var(--ink);
+    caret-color: var(--accent);
+  }
+  .prompt-input::placeholder { color: var(--ink-muted); }
+
+  .affordances {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 96px;
+  }
+  .affordance {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+    padding: 8px 14px;
+    border: 1px solid var(--ink-muted);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 200ms;
+    user-select: none;
+  }
+  .affordance:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+  .affordance.primary {
+    background: var(--accent);
+    color: var(--bg-paper);
+    border-color: var(--accent);
+  }
+  .affordance.primary:hover {
+    background: var(--accent-ink);
+    border-color: var(--accent-ink);
+    color: var(--bg-paper);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow .count { color: var(--accent); }
+
+  .recent-list { display: flex; flex-direction: column; }
+  .recent-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-size: 15px;
+    transition: all 150ms;
+    position: relative;
+  }
+  .recent-item:hover {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+    padding-left: 12px;
+  }
+  .recent-item::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    font-family: var(--mono);
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 150ms;
+  }
+  .recent-item:hover::before { opacity: 1; }
+  .recent-item .bullet {
+    font-family: var(--mono);
+    color: var(--ink-muted);
+    transition: color 150ms;
+  }
+  .recent-item:hover .bullet { color: var(--accent); }
+  .recent-item .q { flex: 1; }
+  .recent-item .ts {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+
+  /* ─── answered view ─── */
+  .answered {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 48px;
+    padding: 48px 32px 96px;
+    max-width: 1280px;
+    margin: 0 auto;
+    animation: fadein 200ms ease;
+  }
+  .breadcrumb {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin-bottom: 40px;
+  }
+  .breadcrumb .crumb-home { color: var(--ink-soft); cursor: pointer; transition: color 150ms; }
+  .breadcrumb .crumb-home .mark { color: var(--accent); }
+  .breadcrumb .crumb-home:hover { color: var(--accent); }
+  .breadcrumb .question { color: var(--ink); }
+  .breadcrumb .sep { margin: 0 8px; color: var(--accent); }
+  .answer-prose {
+    font-family: var(--serif);
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink);
+    max-width: 640px;
+  }
+  .answer-prose p { margin-bottom: 1em; }
+  .answer-prose .claim-ref {
+    color: var(--accent);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms;
+    padding: 0 2px;
+    border-radius: 3px;
+  }
+  .answer-prose .claim-ref:hover {
+    background: rgba(78, 95, 253, 0.12);
+    color: var(--accent-ink);
+  }
+  .answer-prose .claim-ref.active {
+    background: rgba(78, 95, 253, 0.18);
+    color: var(--accent-ink);
+  }
+  .cursor {
+    display: inline-block;
+    width: 9px;
+    height: 20px;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: blink 1s steps(2, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .answer-footer {
+    margin-top: 32px;
+    max-width: 640px;
+  }
+  .ascii-rule {
+    font-family: var(--mono);
+    color: var(--ink-muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+    user-select: none;
+  }
+  .answer-actions {
+    display: flex;
+    gap: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .answer-actions a {
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 150ms;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .answer-actions a .glyph {
+    transition: transform 200ms ease;
+    display: inline-block;
+  }
+  .answer-actions a:hover {
+    color: var(--accent-ink);
+  }
+  .answer-actions a:hover .glyph {
+    transform: translateX(2px);
+  }
+
+  /* ─── citation rail ─── */
+  .citation-rail {
+    display: flex;
+    flex-direction: column;
+  }
+  .citation-rail .eyebrow { margin-bottom: 24px; }
+  .citations {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .citation-card {
+    position: relative;
+    border-left: 3px solid var(--src-default, var(--ink));
+    background: var(--bg-paper);
+    border-radius: 0 8px 8px 0;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 200ms, box-shadow 200ms, background 200ms;
+    font-family: var(--mono);
+  }
+  .citation-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+  }
+  .citation-card.active {
+    transform: translateY(-1px);
+    box-shadow: 0 30px 60px -30px rgba(78, 95, 253, 0.35), 0 18px 36px -18px rgba(78, 95, 253, 0.20);
+    background: rgba(78, 95, 253, 0.04);
+  }
+  .citation-card.active .frame-top,
+  .citation-card.active .frame-bot {
+    color: var(--accent);
+  }
+  .citation-card.active .frame-mid {
+    border-color: var(--accent);
+  }
+  .citation-card.active .src-num {
+    color: var(--accent);
+  }
+  .citation-card .frame-top,
+  .citation-card .frame-bot {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    padding: 0 12px;
+    user-select: none;
+    letter-spacing: -0.05em;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .citation-card .frame-mid {
+    border-left: 1px solid var(--ink-muted);
+    border-right: 1px solid var(--ink-muted);
+    padding: 12px 16px;
+  }
+  .citation-card .src-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .citation-card .src-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .citation-card .src-num {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 500;
+    transition: color 150ms;
+  }
+  .citation-card .src-ts {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    margin-left: auto;
+  }
+  .citation-card .snippet {
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .citation-card[data-src="slack"] { --src-default: var(--src-slack); }
+  .citation-card[data-src="granola"] { --src-default: var(--src-granola); }
+  .citation-card[data-src="gmail"] { --src-default: var(--src-gmail); }
+  .citation-card[data-src="circleback"] { --src-default: var(--src-circleback); }
+  .citation-card[data-src="gcal"] { --src-default: var(--src-gcal); }
+  .citation-card[data-src="notion"] { --src-default: var(--src-notion); }
+
+  /* ─── review affordance with queue pill ─── */
+  .affordance.review-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .queue-pill {
+    background: var(--accent);
+    color: var(--bg-paper);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 10px;
+    line-height: 1.3;
+    min-width: 20px;
+    text-align: center;
+  }
+  .affordance.review-btn:hover .queue-pill {
+    background: var(--accent-ink);
+  }
+
+  /* ─── review deck view ─── */
+  .review-view {
+    height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 32px 48px;
+    animation: fadein 200ms ease;
+    position: relative;
+  }
+  .review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .review-title {
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1.1;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .review-subtitle {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+  }
+  .session-stats {
+    display: flex;
+    gap: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .stat-block {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-soft);
+  }
+  .stat-block .stat-icon { color: var(--accent); font-weight: 500; }
+  .stat-block.kept .stat-icon { color: var(--accent); }
+  .stat-block.archived .stat-icon { color: var(--ink-muted); }
+  .stat-block .stat-num { color: var(--ink); font-weight: 500; font-size: 16px; }
+
+  .deck-stage {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    perspective: 1200px;
+  }
+  .deck-card {
+    position: absolute;
+    width: min(520px, 92vw);
+    background: var(--bg-paper);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    padding: 0;
+    box-shadow: var(--shadow-soft);
+    cursor: grab;
+    user-select: none;
+    overflow: hidden;
+    transition: transform 600ms cubic-bezier(0.32, 0.72, 0.35, 1), opacity 600ms ease-out;
+    will-change: transform;
+  }
+  .deck-card.dragging {
+    transition: none;
+    cursor: grabbing;
+  }
+  .deck-card.gone-right {
+    transform: translateX(150vw) rotate(20deg) !important;
+    opacity: 0;
+  }
+  .deck-card.gone-left {
+    transform: translateX(-150vw) rotate(-20deg) !important;
+    opacity: 0;
+  }
+  .deck-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .deck-card .card-type {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .deck-card .card-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+  }
+  .deck-card .card-body {
+    padding: 28px 28px 24px;
+  }
+  .deck-card .card-title {
+    font-family: var(--serif);
+    font-size: 24px;
+    line-height: 1.25;
+    color: var(--ink);
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
+  .deck-card .card-statement {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin-bottom: 24px;
+  }
+  .deck-card .card-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    letter-spacing: 0.04em;
+  }
+  .deck-card .card-meta .key { color: var(--accent); text-transform: uppercase; letter-spacing: 0.12em; }
+  .deck-card .card-meta .val { color: var(--ink-soft); }
+  .deck-card .card-sources {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .deck-card .card-sources .src-tag {
+    display: inline-block;
+    margin-right: 10px;
+    padding: 3px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .deck-card .swipe-indicator {
+    position: absolute;
+    top: 24px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    font-weight: 500;
+    text-transform: uppercase;
+    border: 2px solid;
+    opacity: 0;
+    transition: opacity 100ms;
+    pointer-events: none;
+  }
+  .deck-card .swipe-indicator.verify {
+    right: 24px;
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: rotate(8deg);
+  }
+  .deck-card .swipe-indicator.archive {
+    left: 24px;
+    color: var(--ink-soft);
+    border-color: var(--ink-soft);
+    transform: rotate(-8deg);
+  }
+
+  .deck-controls {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 16px;
+    align-items: center;
+  }
+  .deck-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: var(--bg-paper);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18px;
+    transition: all 200ms;
+    box-shadow: 0 2px 8px -4px rgba(26, 26, 26, 0.1);
+  }
+  .deck-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-soft);
+  }
+  .deck-btn.archive { color: var(--ink-muted); }
+  .deck-btn.archive:hover { color: var(--ink); border-color: var(--ink); }
+  .deck-btn.verify { color: var(--accent); border-color: var(--accent); background: rgba(78, 95, 253, 0.04); }
+  .deck-btn.verify:hover { background: var(--accent); color: var(--bg-paper); }
+  .deck-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-align: center;
+    margin-top: 14px;
+    letter-spacing: 0.08em;
+  }
+  .deck-hint kbd {
+    display: inline-block;
+    border: 1px solid var(--rule);
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--bg-paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 10px;
+    margin: 0 2px;
+  }
+
+  .deck-btn.undo {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+    color: var(--ink-muted);
+    background: transparent;
+    border-color: var(--rule);
+  }
+  .deck-btn.undo:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+  .deck-btn.undo:not(:disabled):hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .deck-card.returning {
+    transition: transform 360ms cubic-bezier(0.34, 1.4, 0.64, 1), opacity 360ms;
+  }
+
+  /* ─── particle FX layer ─── */
+  .fx-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 10;
+  }
+  .fx-particle {
+    position: absolute;
+    font-family: var(--mono);
+    color: var(--accent);
+    font-weight: 500;
+    user-select: none;
+    pointer-events: none;
+    will-change: transform, opacity;
+    text-shadow: 0 0 8px rgba(78, 95, 253, 0.4);
+  }
+  @keyframes confetti-burst {
+    0% {
+      transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      transform:
+        translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+        scale(1)
+        rotate(var(--rot));
+      opacity: 0;
+    }
+  }
+  @keyframes flame-rise {
+    0% {
+      transform: translate(-50%, 0) scale(0.6);
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      transform:
+        translate(calc(-50% + var(--dx)), var(--dy))
+        scale(var(--end-scale));
+      opacity: 0;
+    }
+  }
+  .fx-particle.confetti {
+    animation: confetti-burst 1400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+  .fx-particle.flame {
+    animation: flame-rise 1600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .deck-empty {
+    text-align: center;
+    padding: 40px;
+  }
+  .deck-empty .ascii-art {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    line-height: 1.5;
+    margin-bottom: 24px;
+    white-space: pre;
+    user-select: none;
+  }
+  .deck-empty .empty-headline {
+    font-family: var(--serif);
+    font-size: 28px;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .deck-empty .empty-stats {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 24px;
+  }
+  .deck-empty .empty-action {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .deck-empty .empty-action:hover { color: var(--accent-ink); }
+
+  /* ─── graph view ─── */
+  .graph-view {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 32px;
+    padding: 32px;
+    height: calc(100vh - 56px);
+    animation: fadein 200ms ease;
+  }
+  .graph-canvas {
+    background: var(--bg-paper-deep);
+    background-image: radial-gradient(circle at 50% 50%, rgba(78, 95, 253, 0.06), transparent 60%);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .graph-canvas svg { width: 100%; height: 100%; display: block; }
+  .graph-node-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    fill: var(--ink-soft);
+    pointer-events: none;
+  }
+  .graph-node.focused .graph-node-label { fill: var(--accent); font-weight: 500; }
+  .graph-link {
+    stroke: var(--ink-muted);
+    stroke-width: 1;
+    opacity: 0.4;
+    transition: all 200ms;
+  }
+  .graph-link.highlight { stroke: var(--accent); stroke-width: 1.5; }
+  .graph-node {
+    cursor: pointer;
+    transition: opacity 200ms;
+  }
+  .graph-canvas.has-hover .graph-link { opacity: 0.1; }
+  .graph-canvas.has-hover .graph-node { opacity: 0.25; }
+  .graph-canvas.has-hover .graph-node.highlight,
+  .graph-canvas.has-hover .graph-link.highlight { opacity: 1; }
+  .focus-ring {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    opacity: 0.6;
+    animation: ringpulse 2.4s ease-in-out infinite;
+  }
+  @keyframes ringpulse {
+    0%, 100% { opacity: 0.3; r: 16; }
+    50% { opacity: 0.8; r: 20; }
+  }
+
+  .entity-panel {
+    background: var(--bg-paper);
+    padding: 32px 0;
+    overflow-y: auto;
+  }
+  .entity-panel .panel-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .entity-name {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 400;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+    position: relative;
+    display: inline-block;
+  }
+  .entity-name::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    width: 24px;
+    height: 2px;
+    background: var(--accent);
+  }
+  .entity-role {
+    font-size: 15px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+    margin-bottom: 24px;
+  }
+  .entity-stats {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 16px 0 24px;
+  }
+  .signal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .signal-item {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .signal-item .arrow {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .graph-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+
+  /* ─── avatar view ─── */
+  .avatar-view {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 48px;
+    padding: 48px 32px;
+    height: calc(100vh - 56px);
+    animation: fadein 200ms ease;
+  }
+  .avatar-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .tavus-frame {
+    width: 480px;
+    height: 360px;
+    background: var(--bg-paper-deep);
+    border-radius: 12px;
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .tavus-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 40%, rgba(78,95,253,0.08), transparent 70%);
+  }
+  .tavus-label {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    position: relative;
+    z-index: 1;
+    letter-spacing: 0.05em;
+  }
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(78, 95, 253, 0.4);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; box-shadow: 0 0 0 0 rgba(78, 95, 253, 0.4); }
+    50% { opacity: 1; box-shadow: 0 0 0 6px rgba(78, 95, 253, 0); }
+  }
+
+  /* ─── animations ─── */
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeup {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fadeup 300ms ease forwards; }
+
+  /* ─── mobile ─── */
+  @media (max-width: 880px) {
+    .answered, .graph-view, .avatar-view {
+      grid-template-columns: 1fr;
+      gap: 32px;
+      padding: 24px 20px;
+    }
+    .graph-view, .avatar-view { height: auto; min-height: calc(100vh - 56px); }
+    .graph-canvas { min-height: 360px; }
+    .prompt-headline { font-size: 36px; }
+    .tavus-frame { width: 100%; max-width: 480px; aspect-ratio: 4/3; height: auto; }
+    .topbar { padding: 0 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wordmark" onclick="goHome()"><span class="mark">◆</span>cerebro</div>
+  <div class="user-pill">
+    <div class="avatar-circle">t</div>
+    <span>tem</span>
+    <span style="font-size:10px;">▾</span>
+  </div>
+</div>
+
+<main id="main"></main>
+
+<script>
+/* ─── seed data ─── */
+const SEED_RECENT = [
+  { q: "what's the team feeling about asana?", ts: "2h" },
+  { q: "who's owning the picnichealth proposal?", ts: "yesterday" },
+  { q: "open decisions blocked on mike", ts: "2d" },
+  { q: "summarize the aivc engagement so far", ts: "3d" },
+  { q: "what signals are rising on the cerebro project?", ts: "5d" }
+];
+
+const SEED_ANSWER = `RC committed to three things in the Tuesday sync with Tem:\n\n① Sharing the AIVC investment thesis doc by Friday.\n\n② Intro'ing the team to two portfolio founders working on agent infrastructure — one in voice, one in browser automation.\n\n③ Reviewing the Cerebro demo before the hackathon weekend, with notes back by Sunday morning.`;
+
+const SEED_CITATIONS = [
+  { src: "granola", name: "GRANOLA", ts: "TUE 2PM", snippet: "RC: I'll get the thesis doc over by end of week, Friday at the latest." },
+  { src: "slack", name: "SLACK", ts: "TUE 4PM", snippet: "rc: btw introing you two to maya at vellum and jonah at browserbase this week" },
+  { src: "gmail", name: "GMAIL", ts: "WED 9AM", snippet: "Subject: Cerebro demo — happy to review before the weekend, send when ready" },
+  { src: "circleback", name: "CIRCLEBACK", ts: "TUE 2PM", snippet: "Action item assigned to RC: review Cerebro demo by Sunday AM" }
+];
+
+const SEED_GRAPH = {
+  nodes: [
+    { id: "rc", type: "person", label: "RC Willenbrock", role: "founder @ aivc", x: 0.5, y: 0.5, focus: true },
+    { id: "tem", type: "person", label: "Tem", role: "founder @ optemization", x: 0.28, y: 0.32 },
+    { id: "kamau", type: "person", label: "Kamau", role: "optemization", x: 0.22, y: 0.58 },
+    { id: "mike", type: "person", label: "Mike", role: "optemization", x: 0.32, y: 0.78 },
+    { id: "aivc", type: "company", label: "AIVC", role: "ai-native vc fund", x: 0.78, y: 0.32 },
+    { id: "optem", type: "company", label: "Optemization", role: "ai consultancy", x: 0.2, y: 0.45 },
+    { id: "d1", type: "decision", label: "Review demo", role: "open · sun deadline", x: 0.72, y: 0.7 },
+    { id: "d2", type: "decision", label: "Share AIVC thesis", role: "committed · fri", x: 0.82, y: 0.52 },
+    { id: "s1", type: "signal", label: "Asana fatigue", role: "rising · 3 mentions", x: 0.45, y: 0.85 },
+    { id: "s2", type: "signal", label: "Hackathon momentum", role: "positive · climbing", x: 0.62, y: 0.85 }
+  ],
+  links: [
+    { s: "rc", t: "aivc" }, { s: "rc", t: "tem" }, { s: "rc", t: "kamau" },
+    { s: "rc", t: "d1" }, { s: "rc", t: "d2" },
+    { s: "tem", t: "optem" }, { s: "kamau", t: "optem" }, { s: "mike", t: "optem" },
+    { s: "s1", t: "optem" }, { s: "s2", t: "d1" }, { s: "tem", t: "d1" }
+  ]
+};
+
+const ENTITY_PROFILES = {
+  rc: {
+    label: "RC Willenbrock", role: "founder @ aivc",
+    stats: ["· 3 meetings · last 7d", "· 11 messages · last 7d", "· 2 decisions · open"],
+    signals: [
+      { dir: "▲", text: "responsive on email — replies under 4h avg" },
+      { dir: "▲", text: "actively recruiting cerebro into aivc portfolio" }
+    ]
+  },
+  tem: {
+    label: "Tem", role: "founder @ optemization",
+    stats: ["· 8 meetings · last 7d", "· 47 messages · last 7d", "· 4 decisions · open"],
+    signals: [ { dir: "▲", text: "leading aivc engagement" } ]
+  },
+  d1: {
+    label: "Review Cerebro demo", role: "open · sunday deadline",
+    stats: ["· decided · tue 2pm granola", "· owner · RC", "· captured from · 2 sources"],
+    signals: [ { dir: "▲", text: "blocked on completed demo build" } ]
+  },
+  s1: {
+    label: "Asana fatigue", role: "rising signal · 3 mentions this week",
+    stats: ["· first seen · 12d ago", "· last seen · 2d ago", "· valence · negative"],
+    signals: [ { dir: "▼", text: "team energy on async task triage" }, { dir: "▲", text: "linear interest mentions" } ]
+  }
+};
+
+const SEED_DECK = [
+  {
+    type: "DECISION",
+    title: "Move team standups to async on Notion",
+    statement: "Replace daily 9am video standups with end-of-day written updates in a shared Notion DB. Trial for 2 weeks.",
+    meta: { who: "Tem proposed", when: "mon · 2pm", scope: "internal · all engineers" },
+    sources: ["GRANOLA · mon 2pm", "SLACK · tue 11am"]
+  },
+  {
+    type: "INSIGHT",
+    title: "RC values speed over polish in early demos",
+    statement: "RC explicitly said 'a janky thing I can poke at beats a polished deck' twice this week, once to us and once on a portfolio call we joined.",
+    meta: { who: "realized by Tem", when: "wed · 4pm", scope: "applies to all AIVC demos" },
+    sources: ["GRANOLA · wed 4pm", "CIRCLEBACK · wed 4pm"]
+  },
+  {
+    type: "PATTERN",
+    title: "Decisions involving Mike get deferred 2x more often",
+    statement: "Of the last 24 decisions where Mike was a required decision-maker, 11 were deferred at least once. Baseline for other team members: ~22%.",
+    meta: { who: "cerebro observed", when: "across 6 weeks", scope: "37 source moments" },
+    sources: ["6 weeks of meetings", "11 deferred decisions", "8 slack threads"]
+  },
+  {
+    type: "FRAMEWORK",
+    title: "AI consulting is just managed services with a thinner wrapper",
+    statement: "RC's framing from the AIVC thesis — repeated three times in our last two syncs. The implication is that defensibility comes from the wrapper (process, IP, integrations), not the AI underneath.",
+    meta: { who: "originator · RC Willenbrock", when: "cited 5x in last month", scope: "strategic / positioning" },
+    sources: ["AIVC thesis doc", "GRANOLA · tue 2pm", "EMAIL · last fri"]
+  },
+  {
+    type: "STRATEGY",
+    title: "Lead with a working demo, not a deck",
+    statement: "When pitching new engagements, open with a 2-minute live tool walkthrough using the prospect's own data. Decks go in follow-up. Hypothesis: shortens sales cycle by 30%.",
+    meta: { who: "proposed by Tem", when: "applied 3x so far", scope: "outbound · enterprise" },
+    sources: ["PicnicHealth pitch · won", "Bellesa pitch · won", "Leslie Inst pitch · pending"]
+  },
+  {
+    type: "SIGNAL",
+    title: "Mounting frustration with current task management",
+    statement: "Three separate team members raised friction with Asana this week. Tone is shifting from 'annoyance' to 'this is actively slowing us down.'",
+    meta: { who: "cerebro observed", when: "rising · last 7 days", scope: "operational / internal" },
+    sources: ["3 slack threads", "2 meeting mentions", "1 1:1 transcript"]
+  },
+  {
+    type: "DECISION",
+    title: "Use Hindsight Cloud for hackathon, self-host post-V1",
+    statement: "Vectorize-managed Hindsight for the May 17 demo. Migration to self-hosted vanilla Hindsight slated for Q3 once AIVC data-residency requirements are confirmed.",
+    meta: { who: "Tem decided", when: "thu · 11am", scope: "architecture · v1 → v2" },
+    sources: ["GRANOLA · thu 11am", "NOTION · cerebro spec"]
+  },
+  {
+    type: "INSIGHT",
+    title: "The demo loop is the product",
+    statement: "Realized while iterating on the avatar surface: every part of the system that doesn't serve the ask → answer → trust loop is overhead. This is the test for every V1.1 feature.",
+    meta: { who: "realized by Tem", when: "fri · 6pm", scope: "product · roadmap filter" },
+    sources: ["GRANOLA · fri 6pm"]
+  },
+  {
+    type: "PATTERN",
+    title: "Engagement decisions cluster around end-of-week",
+    statement: "73% of AIVC-related decisions over the last 8 weeks were committed on Thursdays or Fridays. Monday/Tuesday decisions tend to be reversed.",
+    meta: { who: "cerebro observed", when: "8 weeks of data", scope: "AIVC engagement" },
+    sources: ["18 decisions across 8 weeks"]
+  },
+  {
+    type: "FRAMEWORK",
+    title: "Legibilize before you optimize",
+    statement: "From AIVC framings: you can't optimize an org you can't read. Cerebro's job is the legibility layer; optimization is downstream.",
+    meta: { who: "originator · RC, refined by Tem", when: "core to V1 positioning", scope: "product thesis" },
+    sources: ["AIVC kickoff · 6 weeks ago", "Cerebro spec doc"]
+  },
+  {
+    type: "STRATEGY",
+    title: "Dogfood on Optemization before any client onboarding",
+    statement: "No external customer until the team has been on Cerebro for 30+ days. Hypothesis: only by living with the dogfood do we know what to build for V1.5.",
+    meta: { who: "team consensus", when: "agreed this week", scope: "v1 → v1.5 sequencing" },
+    sources: ["TEAM SYNC · tue 2pm"]
+  },
+  {
+    type: "SIGNAL",
+    title: "AIVC enthusiasm climbing into the hackathon weekend",
+    statement: "RC has referenced Cerebro unprompted in 4 of his last 5 communications with us. Tone shifted from 'interested' to 'actively championing' over the past 10 days.",
+    meta: { who: "cerebro observed", when: "rising · last 10 days", scope: "AIVC relationship" },
+    sources: ["5 emails", "2 meetings", "8 slack mentions"]
+  }
+];
+
+/* ─── state ─── */
+let state = { mode: "home", question: "", activeCitation: null, graphFocus: null, deckIndex: 0, kept: 0, archived: 0, history: [] };
+
+function setState(patch) {
+  state = { ...state, ...patch };
+  render();
+}
+
+function goHome() { setState({ mode: "home", question: "", activeCitation: null, graphFocus: null }); }
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") goHome();
+});
+
+/* ─── render ─── */
+function render() {
+  const main = document.getElementById("main");
+  if (state.mode === "home") main.innerHTML = renderHome();
+  else if (state.mode === "answered") { main.innerHTML = renderAnswered(); mountAnswered(); }
+  else if (state.mode === "graph") { main.innerHTML = renderGraph(); mountGraph(); }
+  else if (state.mode === "avatar") { main.innerHTML = renderAvatar(); mountAvatar(); }
+  else if (state.mode === "review") { main.innerHTML = renderReview(); mountReview(); }
+}
+
+/* ─── home ─── */
+function renderHome() {
+  return `
+    <div class="home">
+      <div class="home-inner">
+        <h1 class="prompt-headline">what would you like to <em>know</em>?</h1>
+        <div class="prompt-input-wrap">
+          <input id="prompt" class="prompt-input" placeholder="ask cerebro anything…" autocomplete="off" />
+        </div>
+        <div class="affordances">
+          <button class="affordance primary" onclick="submitPrompt()">⏎ ask</button>
+          <button class="affordance" onclick="setState({mode:'avatar'})">🎙 speak</button>
+          <button class="affordance" onclick="setState({mode:'graph', graphFocus:'rc'})">◇ graph</button>
+          <button class="affordance review-btn" onclick="setState({mode:'review'})">
+            <span>◆ swipe</span>
+            <span class="queue-pill">${Math.max(0, SEED_DECK.length - state.deckIndex)}</span>
+          </button>
+        </div>
+        <div class="eyebrow">// RECENT</div>
+        <div class="recent-list">
+          ${SEED_RECENT.map(r => `
+            <div class="recent-item" onclick="askQuestion('${r.q.replace(/'/g, "\\'")}')">
+              <span class="bullet">·</span>
+              <span class="q">${r.q}</span>
+              <span class="ts">${r.ts}</span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+setTimeout(() => {
+  const i = document.getElementById("prompt");
+  if (i) i.focus();
+}, 0);
+
+function submitPrompt() {
+  const i = document.getElementById("prompt");
+  const v = i ? i.value.trim() : "";
+  askQuestion(v || "what did rc commit to last week?");
+}
+
+function askQuestion(q) {
+  setState({ mode: "answered", question: q, activeCitation: null });
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && state.mode === "home") {
+    submitPrompt();
+  }
+});
+
+/* ─── answered ─── */
+function renderAnswered() {
+  return `
+    <div class="answered">
+      <div>
+        <div class="breadcrumb">
+          <span class="crumb-home" onclick="goHome()"><span class="mark">◆</span>cerebro</span>
+          <span class="sep">›</span>
+          <span class="question">${state.question}</span>
+        </div>
+        <div class="answer-prose" id="answer-prose"></div>
+        <div class="answer-footer" id="answer-footer" style="opacity:0;">
+          <div class="ascii-rule">─────────────────────────</div>
+          <div class="answer-actions">
+            <a onclick="setState({mode:'graph', graphFocus:'rc'})"><span class="glyph">◇</span> see in graph</a>
+            <a onclick="goHome()"><span class="glyph">↻</span> ask follow-up</a>
+          </div>
+        </div>
+      </div>
+      <aside class="citation-rail" id="citation-rail" style="opacity:0;">
+        <div class="eyebrow">// SOURCES <span class="count">[${SEED_CITATIONS.length}]</span></div>
+        <div class="citations">
+          ${SEED_CITATIONS.map((c, i) => `
+            <div class="citation-card" data-src="${c.src}" data-idx="${i}">
+              <div class="frame-top">╭${"─".repeat(40)}╮</div>
+              <div class="frame-mid">
+                <div class="src-head">
+                  <span class="src-num">${["①","②","③","④"][i]}</span>
+                  <span class="src-name">${c.name}</span>
+                  <span class="src-ts">${c.ts}</span>
+                </div>
+                <div class="snippet">${c.snippet}</div>
+              </div>
+              <div class="frame-bot">╰${"─".repeat(40)}╯</div>
+            </div>
+          `).join("")}
+        </div>
+      </aside>
+    </div>
+  `;
+}
+
+function mountAnswered() {
+  const prose = document.getElementById("answer-prose");
+  const footer = document.getElementById("answer-footer");
+  const rail = document.getElementById("citation-rail");
+
+  // stream the answer character-by-character
+  const text = SEED_ANSWER;
+  let i = 0;
+  let html = "";
+  prose.innerHTML = '<span class="cursor"></span>';
+
+  const tick = () => {
+    if (i >= text.length) {
+      // finalize: replace newlines with paragraphs, wrap numerals in clickable spans
+      const final = text
+        .split("\n\n")
+        .map(p => "<p>" + p.replace(/(①|②|③|④)/g, '<span class="claim-ref" data-ref="$1">$1</span>') + "</p>")
+        .join("");
+      prose.innerHTML = final;
+      footer.style.transition = "opacity 400ms ease";
+      footer.style.opacity = "1";
+      rail.style.transition = "opacity 400ms ease";
+      rail.style.opacity = "1";
+      wireCitationHover();
+      return;
+    }
+    html += text[i] === "\n" ? "<br>" : text[i];
+    prose.innerHTML = html + '<span class="cursor"></span>';
+    i++;
+    setTimeout(tick, text[i-1] === "\n" ? 60 : 12);
+  };
+  setTimeout(tick, 200);
+}
+
+function wireCitationHover() {
+  const refMap = { "①": 0, "②": 1, "③": 2, "④": 3 };
+  document.querySelectorAll(".claim-ref").forEach(el => {
+    const idx = refMap[el.dataset.ref];
+    const card = document.querySelector(`.citation-card[data-idx="${idx}"]`);
+    if (!card) return;
+    el.addEventListener("mouseenter", () => {
+      el.classList.add("active");
+      card.classList.add("active");
+    });
+    el.addEventListener("mouseleave", () => {
+      el.classList.remove("active");
+      card.classList.remove("active");
+    });
+  });
+  document.querySelectorAll(".citation-card").forEach(card => {
+    const idx = card.dataset.idx;
+    const ref = document.querySelector(`.claim-ref[data-ref="${["①","②","③","④"][idx]}"]`);
+    card.addEventListener("mouseenter", () => {
+      if (ref) ref.classList.add("active");
+    });
+    card.addEventListener("mouseleave", () => {
+      if (ref) ref.classList.remove("active");
+    });
+  });
+}
+
+/* ─── graph ─── */
+function renderGraph() {
+  return `
+    <div class="graph-view">
+      <div class="graph-canvas" id="graph-canvas">
+        <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet" id="graph-svg"></svg>
+      </div>
+      <aside class="entity-panel" id="entity-panel">
+        ${renderEntityPanel(state.graphFocus)}
+      </aside>
+    </div>
+  `;
+}
+
+function renderEntityPanel(id) {
+  if (!id) {
+    return `<div class="graph-empty">click a node to inspect</div>`;
+  }
+  const p = ENTITY_PROFILES[id];
+  const node = SEED_GRAPH.nodes.find(n => n.id === id);
+  if (!p) {
+    return `
+      <div class="panel-eyebrow">// ${node.type}</div>
+      <h2 class="entity-name">${node.label}</h2>
+      <div class="entity-role">${node.role}</div>
+      <div class="ascii-rule">─────────────────────────</div>
+      <div class="graph-empty" style="height:auto; padding:20px 0;">no dossier yet</div>
+    `;
+  }
+  const typeLabel = node.type.toUpperCase();
+  return `
+    <div class="panel-eyebrow">// ${typeLabel}</div>
+    <h2 class="entity-name">${p.label}</h2>
+    <div class="entity-role">${p.role}</div>
+    <div class="ascii-rule">─────────────────────────</div>
+    <div class="entity-stats">
+      ${p.stats.map(s => `<div>${s}</div>`).join("")}
+    </div>
+    <div class="ascii-rule">─────────────────────────</div>
+    <div class="panel-eyebrow" style="margin-top:16px;">// RECENT SIGNALS</div>
+    <div class="signal-list">
+      ${p.signals.map(s => `
+        <div class="signal-item">
+          <span class="arrow">${s.dir}</span>
+          <span>${s.text}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function mountGraph() {
+  const svg = document.getElementById("graph-svg");
+  const W = 1000, H = 700;
+  const nodes = SEED_GRAPH.nodes.map(n => ({ ...n, cx: n.x * W, cy: n.y * H }));
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const links = SEED_GRAPH.links.map(l => ({ s: nodeMap[l.s], t: nodeMap[l.t] }));
+
+  // links first
+  let svgInner = "";
+  links.forEach((l, i) => {
+    svgInner += `<line class="graph-link" data-i="${i}" data-s="${l.s.id}" data-t="${l.t.id}" x1="${l.s.cx}" y1="${l.s.cy}" x2="${l.t.cx}" y2="${l.t.cy}" />`;
+  });
+  // nodes
+  nodes.forEach(n => {
+    const isFocused = state.graphFocus === n.id;
+    let shape = "";
+    let ring = "";
+    if (n.type === "person") {
+      const fill = isFocused ? "var(--accent)" : "var(--ink)";
+      shape = `<circle r="9" cx="${n.cx}" cy="${n.cy}" fill="${fill}" />`;
+    } else if (n.type === "decision") {
+      shape = `<rect x="${n.cx-8}" y="${n.cy-8}" width="16" height="16" transform="rotate(45 ${n.cx} ${n.cy})" fill="var(--accent)" />`;
+    } else if (n.type === "signal") {
+      const stroke = isFocused ? "var(--accent)" : "var(--ink)";
+      shape = `<circle r="8" cx="${n.cx}" cy="${n.cy}" fill="var(--bg-paper-deep)" stroke="${stroke}" stroke-width="1.5" />`;
+    } else if (n.type === "company") {
+      const fill = isFocused ? "var(--accent)" : "var(--ink-soft)";
+      shape = `<rect x="${n.cx-8}" y="${n.cy-8}" width="16" height="16" fill="${fill}" />`;
+    }
+    if (isFocused) {
+      ring = `<circle class="focus-ring" cx="${n.cx}" cy="${n.cy}" r="18" />`;
+    }
+    svgInner += `<g class="graph-node ${isFocused ? 'highlight focused' : ''}" data-id="${n.id}">${ring}${shape}<text class="graph-node-label" x="${n.cx}" y="${n.cy + 22}" text-anchor="middle">${n.label}</text></g>`;
+  });
+  svg.innerHTML = svgInner;
+
+  const canvas = document.getElementById("graph-canvas");
+
+  function highlight(id) {
+    canvas.classList.add("has-hover");
+    svg.querySelectorAll(".graph-node").forEach(n => n.classList.remove("highlight"));
+    svg.querySelectorAll(".graph-link").forEach(l => l.classList.remove("highlight"));
+    const center = svg.querySelector(`.graph-node[data-id="${id}"]`);
+    if (center) center.classList.add("highlight");
+    svg.querySelectorAll(".graph-link").forEach(l => {
+      if (l.dataset.s === id || l.dataset.t === id) {
+        l.classList.add("highlight");
+        const other = l.dataset.s === id ? l.dataset.t : l.dataset.s;
+        const otherNode = svg.querySelector(`.graph-node[data-id="${other}"]`);
+        if (otherNode) otherNode.classList.add("highlight");
+      }
+    });
+  }
+
+  function clearHighlight() {
+    canvas.classList.remove("has-hover");
+    svg.querySelectorAll(".graph-node, .graph-link").forEach(el => el.classList.remove("highlight"));
+  }
+
+  svg.querySelectorAll(".graph-node").forEach(g => {
+    g.addEventListener("mouseenter", () => highlight(g.dataset.id));
+    g.addEventListener("mouseleave", clearHighlight);
+    g.addEventListener("click", () => {
+      setState({ graphFocus: g.dataset.id });
+    });
+  });
+
+  if (state.graphFocus) highlight(state.graphFocus);
+}
+
+/* ─── avatar ─── */
+function renderAvatar() {
+  return `
+    <div class="avatar-view">
+      <div class="avatar-stage">
+        <div class="tavus-frame">
+          <div class="tavus-label">[ tavus avatar ]</div>
+        </div>
+        <div class="status-row">
+          <div class="pulse-dot"></div>
+          <span>listening…</span>
+        </div>
+      </div>
+      <aside class="citation-rail" id="live-rail">
+        <div class="eyebrow">
+          <div class="pulse-dot" style="width:6px;height:6px;"></div>
+          // LIVE
+        </div>
+        <div class="citations" id="live-citations"></div>
+      </aside>
+    </div>
+  `;
+}
+
+function mountAvatar() {
+  const container = document.getElementById("live-citations");
+  SEED_CITATIONS.forEach((c, i) => {
+    setTimeout(() => {
+      const card = document.createElement("div");
+      card.className = "citation-card fade-up";
+      card.dataset.src = c.src;
+      card.innerHTML = `
+        <div class="frame-top">╭${"─".repeat(40)}╮</div>
+        <div class="frame-mid">
+          <div class="src-head">
+            <span class="src-num">${["①","②","③","④"][i]}</span>
+            <span class="src-name">${c.name}</span>
+            <span class="src-ts">${c.ts}</span>
+          </div>
+          <div class="snippet">${c.snippet}</div>
+        </div>
+        <div class="frame-bot">╰${"─".repeat(40)}╯</div>
+      `;
+      container.appendChild(card);
+    }, 1000 + i * 1500);
+  });
+}
+
+/* ─── review deck ─── */
+function renderReview() {
+  const remaining = SEED_DECK.length - state.deckIndex;
+  if (remaining <= 0) {
+    return `
+      <div class="review-view">
+        <div class="review-header">
+          <div>
+            <div class="review-title">all caught up</div>
+            <div class="review-subtitle">// SWIPE</div>
+          </div>
+          <div class="session-stats">
+            <div class="stat-block kept"><span class="stat-icon">▲</span><span class="stat-num">${state.kept}</span> verified</div>
+            <div class="stat-block archived"><span class="stat-icon">▼</span><span class="stat-num">${state.archived}</span> archived</div>
+          </div>
+        </div>
+        <div class="deck-stage">
+          <div class="deck-empty">
+            <div class="ascii-art">     ╭───────────────╮
+     │   ◆     ◆     │
+     │       ◇       │
+     ╰───────────────╯</div>
+            <div class="empty-headline">nothing pending</div>
+            <div class="empty-stats">${state.kept + state.archived} swiped this session · ${state.kept} kept · ${state.archived} archived</div>
+            <a class="empty-action" onclick="resetDeck()">↻ start a new session</a>
+            ${state.history.length > 0 ? `<a class="empty-action" style="margin-left:20px;" onclick="undoSwipe()">↶ undo last</a>` : ""}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  const current = SEED_DECK[state.deckIndex];
+  const next = SEED_DECK[state.deckIndex + 1];
+  return `
+    <div class="review-view">
+      <div class="review-header">
+        <div>
+          <div class="review-title">verify what cerebro learned</div>
+          <div class="review-subtitle">// SWIPE · ${remaining} pending · ${state.deckIndex + 1} of ${SEED_DECK.length}</div>
+        </div>
+        <div class="session-stats">
+          <div class="stat-block kept"><span class="stat-icon">▲</span><span class="stat-num">${state.kept}</span> verified</div>
+          <div class="stat-block archived"><span class="stat-icon">▼</span><span class="stat-num">${state.archived}</span> archived</div>
+        </div>
+      </div>
+      <div class="deck-stage" id="deck-stage">
+        ${next ? renderCard(next, state.deckIndex + 1, true) : ""}
+        ${renderCard(current, state.deckIndex, false)}
+      </div>
+      <div class="deck-controls">
+        <button class="deck-btn archive" id="btn-archive" title="archive (←)">✕</button>
+        <button class="deck-btn undo" id="btn-undo" title="undo (⌘Z)" ${state.history.length === 0 ? "disabled" : ""}>↶</button>
+        <button class="deck-btn verify" id="btn-verify" title="verify (→)">✓</button>
+      </div>
+      <div class="deck-hint">
+        drag to swipe · <kbd>←</kbd> archive · <kbd>→</kbd> verify · <kbd>⌘Z</kbd> undo · <kbd>esc</kbd> exit
+      </div>
+    </div>
+  `;
+}
+
+function renderCard(card, idx, isBack) {
+  const offsetStyle = isBack ? `transform: scale(0.94) translateY(12px); opacity: 0.5; z-index: 1;` : `z-index: 2;`;
+  return `
+    <div class="deck-card ${isBack ? 'back' : 'top'}" data-idx="${idx}" style="${offsetStyle}">
+      <div class="swipe-indicator verify">▲ verify</div>
+      <div class="swipe-indicator archive">▼ archive</div>
+      <div class="card-header">
+        <div class="card-type">// ${card.type}</div>
+        <div class="card-num">${String(idx + 1).padStart(2, "0")} / ${String(SEED_DECK.length).padStart(2, "0")}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${card.title}</div>
+        <div class="card-statement">${card.statement}</div>
+        <div class="card-meta">
+          <div class="key">WHO</div><div class="val">${card.meta.who}</div>
+          <div class="key">WHEN</div><div class="val">${card.meta.when}</div>
+          <div class="key">SCOPE</div><div class="val">${card.meta.scope}</div>
+        </div>
+        <div class="card-sources">
+          ${card.sources.map(s => `<span class="src-tag">${s}</span>`).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function resetDeck() {
+  setState({ deckIndex: 0, kept: 0, archived: 0, history: [] });
+}
+
+function mountReview() {
+  const stage = document.getElementById("deck-stage");
+  if (!stage) return;
+  const top = stage.querySelector(".deck-card.top");
+  if (!top) return;
+
+  const verifyInd = top.querySelector(".swipe-indicator.verify");
+  const archiveInd = top.querySelector(".swipe-indicator.archive");
+
+  let startX = 0, startY = 0, currentX = 0, currentY = 0, dragging = false;
+
+  function onStart(clientX, clientY) {
+    dragging = true;
+    startX = clientX;
+    startY = clientY;
+    top.classList.add("dragging");
+  }
+
+  function onMove(clientX, clientY) {
+    if (!dragging) return;
+    currentX = clientX - startX;
+    currentY = clientY - startY;
+    const rot = currentX / 20;
+    top.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rot}deg)`;
+    const opacity = Math.min(1, Math.abs(currentX) / 100);
+    if (currentX > 0) {
+      verifyInd.style.opacity = opacity;
+      archiveInd.style.opacity = 0;
+    } else if (currentX < 0) {
+      archiveInd.style.opacity = opacity;
+      verifyInd.style.opacity = 0;
+    } else {
+      verifyInd.style.opacity = 0;
+      archiveInd.style.opacity = 0;
+    }
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    top.classList.remove("dragging");
+    const threshold = 100;
+    if (currentX > threshold) commit("right");
+    else if (currentX < -threshold) commit("left");
+    else {
+      top.style.transform = "";
+      verifyInd.style.opacity = 0;
+      archiveInd.style.opacity = 0;
+    }
+    currentX = 0;
+    currentY = 0;
+  }
+
+  function spawnFX(direction) {
+    const fxLayer = document.createElement("div");
+    fxLayer.className = "fx-layer";
+    const stageRect = stage.getBoundingClientRect();
+    const cardRect = top.getBoundingClientRect();
+    // origin: center of where the card was
+    const originX = cardRect.left - stageRect.left + cardRect.width / 2;
+    const originY = cardRect.top - stageRect.top + cardRect.height / 2;
+
+    const COUNT = 28;
+    if (direction === "right") {
+      // confetti burst — characters fly outward in all directions
+      const glyphs = ["◆", "◇", "✦", "✧", "·", "○", "●", "◈"];
+      for (let i = 0; i < COUNT; i++) {
+        const p = document.createElement("span");
+        p.className = "fx-particle confetti";
+        p.textContent = glyphs[i % glyphs.length];
+        const angle = (Math.PI * 2 * i) / COUNT + (Math.random() - 0.5) * 0.4;
+        const distance = 120 + Math.random() * 180;
+        const dx = Math.cos(angle) * distance;
+        const dy = Math.sin(angle) * distance - 40; // slight upward bias
+        const size = 14 + Math.random() * 14;
+        const rot = (Math.random() - 0.5) * 540;
+        const delay = Math.random() * 120;
+        p.style.left = originX + "px";
+        p.style.top = originY + "px";
+        p.style.fontSize = size + "px";
+        p.style.setProperty("--dx", dx + "px");
+        p.style.setProperty("--dy", dy + "px");
+        p.style.setProperty("--rot", rot + "deg");
+        p.style.animationDelay = delay + "ms";
+        p.style.opacity = 0;
+        fxLayer.appendChild(p);
+      }
+    } else {
+      // flame rise — characters rise from the bottom of the card area
+      const glyphs = ["▲", "░", "▒", "▓", "◢", "◣", "◤", "◥", "△", "⌃"];
+      for (let i = 0; i < COUNT; i++) {
+        const p = document.createElement("span");
+        p.className = "fx-particle flame";
+        p.textContent = glyphs[i % glyphs.length];
+        const lateralOffset = (Math.random() - 0.5) * cardRect.width * 0.9;
+        const startX = originX + lateralOffset;
+        // start near bottom of card
+        const startY = cardRect.bottom - stageRect.top - 20 + (Math.random() * 40);
+        const dx = lateralOffset * 0.3 + (Math.random() - 0.5) * 60;
+        const dy = -(160 + Math.random() * 220);
+        const size = 16 + Math.random() * 16;
+        const endScale = 0.4 + Math.random() * 0.5;
+        const delay = Math.random() * 200;
+        p.style.left = startX + "px";
+        p.style.top = startY + "px";
+        p.style.fontSize = size + "px";
+        p.style.setProperty("--dx", dx + "px");
+        p.style.setProperty("--dy", dy + "px");
+        p.style.setProperty("--end-scale", endScale);
+        p.style.animationDelay = delay + "ms";
+        p.style.opacity = 0;
+        fxLayer.appendChild(p);
+      }
+    }
+    stage.appendChild(fxLayer);
+    // cleanup — wait until longest animation (flame at 1600ms + max delay ~200ms) completes
+    setTimeout(() => { if (fxLayer.parentNode) fxLayer.parentNode.removeChild(fxLayer); }, 2000);
+  }
+
+  function commit(direction) {
+    if (top.classList.contains("gone-right") || top.classList.contains("gone-left")) return; // guard double-fire
+    spawnFX(direction);
+    top.classList.add(direction === "right" ? "gone-right" : "gone-left");
+    setTimeout(() => {
+      const newHistory = [...state.history, { direction, deckIndex: state.deckIndex }];
+      if (direction === "right") {
+        setState({ deckIndex: state.deckIndex + 1, kept: state.kept + 1, history: newHistory });
+      } else {
+        setState({ deckIndex: state.deckIndex + 1, archived: state.archived + 1, history: newHistory });
+      }
+    }, 700);
+  }
+
+  // pointer events
+  top.addEventListener("mousedown", e => { e.preventDefault(); onStart(e.clientX, e.clientY); });
+  window.addEventListener("mousemove", e => onMove(e.clientX, e.clientY));
+  window.addEventListener("mouseup", onEnd);
+  top.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+  window.addEventListener("touchmove", e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: true });
+  window.addEventListener("touchend", onEnd);
+
+  // button controls
+  const btnVerify = document.getElementById("btn-verify");
+  const btnArchive = document.getElementById("btn-archive");
+  const btnUndo = document.getElementById("btn-undo");
+  if (btnVerify) btnVerify.addEventListener("click", () => commit("right"));
+  if (btnArchive) btnArchive.addEventListener("click", () => commit("left"));
+  if (btnUndo) btnUndo.addEventListener("click", () => undoSwipe());
+
+  // keyboard — replace any existing handler first
+  if (window._deckKeyHandler) {
+    document.removeEventListener("keydown", window._deckKeyHandler);
+  }
+  const keyHandler = e => {
+    if (state.mode !== "review") return;
+    if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      undoSwipe();
+      return;
+    }
+    if (e.key === "ArrowRight") { e.preventDefault(); commit("right"); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); commit("left"); }
+  };
+  window._deckKeyHandler = keyHandler;
+  document.addEventListener("keydown", keyHandler);
+}
+
+function undoSwipe() {
+  if (!state.history || state.history.length === 0) return;
+  const last = state.history[state.history.length - 1];
+  const newHistory = state.history.slice(0, -1);
+  const wasVerify = last.direction === "right";
+
+  // re-render with restored index first, then animate the returning card
+  setState({
+    deckIndex: last.deckIndex,
+    kept: wasVerify ? Math.max(0, state.kept - 1) : state.kept,
+    archived: !wasVerify ? Math.max(0, state.archived - 1) : state.archived,
+    history: newHistory
+  });
+
+  // after re-render, animate the new top card flying back from off-screen
+  requestAnimationFrame(() => {
+    const stage = document.getElementById("deck-stage");
+    if (!stage) return;
+    const top = stage.querySelector(".deck-card.top");
+    if (!top) return;
+    // start position: off-screen on the side the swipe went
+    const startTransform = wasVerify
+      ? "translateX(150vw) rotate(20deg)"
+      : "translateX(-150vw) rotate(-20deg)";
+    top.style.transition = "none";
+    top.style.transform = startTransform;
+    top.style.opacity = "0";
+    // force layout flush
+    top.getBoundingClientRect();
+    top.classList.add("returning");
+    requestAnimationFrame(() => {
+      top.style.transform = "";
+      top.style.opacity = "1";
+      setTimeout(() => {
+        top.classList.remove("returning");
+        top.style.transition = "";
+      }, 400);
+    });
+  });
+}
+
+/* ─── init ─── */
+render();
+
+/* ─── live data: replace SEED_DECK with rows from /api/deck ─── */
+fetch("/api/deck")
+  .then(r => r.ok ? r.json() : null)
+  .then(data => {
+    if (!data || !Array.isArray(data.cards) || data.cards.length === 0) return;
+    SEED_DECK.length = 0;
+    SEED_DECK.push(...data.cards);
+    if (state.mode === "home" || state.mode === "review") render();
+  })
+  .catch(() => { /* keep seed deck on failure */ });
+</script>
+
+</body>
+</html>
