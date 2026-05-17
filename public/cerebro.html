@@ -1879,7 +1879,7 @@ function renderEntityPanel(id) {
           <div class="fact-text">${firstSentence(f.text)}</div>
         </div>`;
       }).join("");
-      accordionHtml += `<details class="accordion-section" open>
+      accordionHtml += `<details class="accordion-section">
         <summary class="accordion-header"><span>${icon} ${label}</span><span class="accordion-count">${facts.length}</span></summary>
         <div class="accordion-body"><div class="fact-list">${items}</div></div>
       </details>`;
