@@ -1,4 +1,4 @@
-**Winner: TBD — pending human review.**
+**Winner: Format B (day-in-the-life narrative).**
 
 ---
 
