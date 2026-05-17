@@ -370,11 +370,12 @@ worker.tool("backfillRange", {
 	description:
 		"Generate daily briefs for a date range across specified channels. Runs asynchronously — returns a runId immediately. Check progress with getBackfillStatus.",
 	schema: j.object({
-		from: j.string().describe("Start date YYYY-MM-DD. Pass '2026-01-01' for full history."),
-		to: j.string().describe("End date YYYY-MM-DD. Pass today's date for most recent."),
+		from: j.string().describe("Start date YYYY-MM-DD. Pass '2026-01-01' for full history.").nullable(),
+		to: j.string().describe("End date YYYY-MM-DD. Pass today's date for most recent.").nullable(),
 		channels: j
 			.array(j.string())
-			.describe("Channel IDs to backfill. Pass empty array [] for all active channels."),
+			.describe("Channel IDs to backfill. Pass empty array [] for all active channels.")
+			.nullable(),
 	}),
 	outputSchema: j.object({
 		runId: j.string(),
