@@ -2011,86 +2011,152 @@ async function mountGraph() {
 
   const canvas = container;
 
-  function getEdgeId(d) {
-    const s = d.source.id ?? d.source;
-    const t = d.target.id ?? d.target;
-    return [s, t];
+  function eid(d) { return [d.source.id ?? d.source, d.target.id ?? d.target]; }
+
+  function buildAdj() {
+    const adj = new Map();
+    link.each(function(d) {
+      const [s, t] = eid(d);
+      if (!adj.has(s)) adj.set(s, []);
+      if (!adj.has(t)) adj.set(t, []);
+      adj.get(s).push({ to: t, strength: d.strength || 0.3, s, t });
+      adj.get(t).push({ to: s, strength: d.strength || 0.3, s, t });
+    });
+    return adj;
   }
 
-  function computeInfluence(rootId) {
-    const linkData = [];
-    link.each(function(d) { linkData.push(d); });
+  let tracePath = [];
 
-    const adj = new Map();
-    linkData.forEach(d => {
-      const [sid, tid] = getEdgeId(d);
-      if (!adj.has(sid)) adj.set(sid, []);
-      if (!adj.has(tid)) adj.set(tid, []);
-      adj.get(sid).push({ to: tid, strength: d.strength || 0.3, sid, tid });
-      adj.get(tid).push({ to: sid, strength: d.strength || 0.3, sid, tid });
+  function neighbors(nodeId, adj) {
+    return new Set((adj.get(nodeId) || []).map(n => n.to));
+  }
+
+  function renderTrace() {
+    canvas.classList.add("has-hover");
+    const adj = buildAdj();
+    const pathSet = new Set(tracePath);
+    const pathEdges = new Set();
+    for (let i = 0; i < tracePath.length - 1; i++) {
+      pathEdges.add(tracePath[i] + "|" + tracePath[i + 1]);
+      pathEdges.add(tracePath[i + 1] + "|" + tracePath[i]);
+    }
+
+    const tip = tracePath[tracePath.length - 1];
+    const tipNeighbors = neighbors(tip, adj);
+    const frontier = new Set();
+    const frontierEdges = new Set();
+    tipNeighbors.forEach(n => {
+      if (!pathSet.has(n)) {
+        frontier.add(n);
+        frontierEdges.add(tip + "|" + n);
+        frontierEdges.add(n + "|" + tip);
+      }
     });
 
-    const influence = new Map();
-    const edgeInf = new Map();
-    influence.set(rootId, 1.0);
-    const queue = [{ id: rootId, power: 1.0 }];
-    const visited = new Set([rootId]);
-    while (queue.length > 0) {
-      const { id, power } = queue.shift();
-      for (const nb of (adj.get(id) || [])) {
-        const propagated = power * (0.4 + nb.strength * 0.6) * 0.85;
-        if (propagated < 0.02 || visited.has(nb.to)) continue;
-        visited.add(nb.to);
-        influence.set(nb.to, propagated);
-        const ek = nb.sid + "|" + nb.tid;
-        edgeInf.set(ek, Math.max(edgeInf.get(ek) || 0, propagated));
-        queue.push({ id: nb.to, power: propagated });
-      }
-    }
-    return { influence, edgeInf };
-  }
+    const frontierStrength = new Map();
+    (adj.get(tip) || []).forEach(nb => {
+      if (frontier.has(nb.to)) frontierStrength.set(nb.to, nb.strength);
+    });
 
-  function applyInfluence(rootId) {
-    canvas.classList.add("has-hover");
-    const { influence, edgeInf } = computeInfluence(rootId);
-
-    node.style("opacity", d => d.id === rootId ? 1 : (influence.get(d.id) || 0.05));
+    node.style("opacity", d => {
+      if (pathSet.has(d.id)) return 1;
+      if (frontier.has(d.id)) return 0.3 + (frontierStrength.get(d.id) || 0.3) * 0.5;
+      return 0.04;
+    });
     node.selectAll("circle, rect").style("transform", function() {
       const d = d3.select(this.parentNode).datum();
-      const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
-      return inf > 0.08 ? `scale(${1 + inf * 0.4})` : "scale(0.8)";
+      if (pathSet.has(d.id)) return "scale(1.3)";
+      if (frontier.has(d.id)) return `scale(${0.9 + (frontierStrength.get(d.id) || 0.3) * 0.3})`;
+      return "scale(0.7)";
     });
     node.select(".graph-node-label").style("opacity", function() {
       const d = d3.select(this.parentNode).datum();
-      const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
-      return inf > 0.1 ? 1 : inf > 0.04 ? 0.4 : 0;
+      if (pathSet.has(d.id)) return 1;
+      if (frontier.has(d.id)) return 0.7;
+      return 0;
     });
 
     link.style("opacity", d => {
-      const [sid, tid] = getEdgeId(d);
-      return edgeInf.get(sid + "|" + tid) || edgeInf.get(tid + "|" + sid) || 0.02;
+      const [s, t] = eid(d);
+      const k1 = s + "|" + t, k2 = t + "|" + s;
+      if (pathEdges.has(k1) || pathEdges.has(k2)) return 0.9;
+      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 0.15 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 0.3;
+      return 0.015;
     });
     link.style("stroke-width", d => {
-      const [sid, tid] = getEdgeId(d);
-      const inf = edgeInf.get(sid + "|" + tid) || edgeInf.get(tid + "|" + sid) || 0;
-      return 1 + inf * 6;
+      const [s, t] = eid(d);
+      const k1 = s + "|" + t, k2 = t + "|" + s;
+      if (pathEdges.has(k1) || pathEdges.has(k2)) return 4;
+      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 1 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 3;
+      return 0.5;
     });
+    link.style("stroke", d => {
+      const [s, t] = eid(d);
+      const k1 = s + "|" + t, k2 = t + "|" + s;
+      if (pathEdges.has(k1) || pathEdges.has(k2)) return "var(--accent)";
+      return null;
+    });
+
+    document.getElementById("entity-panel").innerHTML = renderEntityPanel(tip);
   }
 
-  function clearInfluence() {
+  function clearTrace() {
+    tracePath = [];
     canvas.classList.remove("has-hover");
     node.style("opacity", 1);
     node.selectAll("circle, rect").style("transform", null);
     node.select(".graph-node-label").style("opacity", 1);
-    link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7).style("stroke-width", d => 1 + (d.strength || 0) * 5);
+    link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7)
+      .style("stroke-width", d => 1 + (d.strength || 0) * 5)
+      .style("stroke", null);
+    state.graphFocus = null;
+    document.getElementById("entity-panel").innerHTML = renderEntityPanel(null);
   }
 
-  node.on("mouseenter", (ev, d) => applyInfluence(d.id));
-  node.on("mouseleave", () => { if (!state.graphFocus) clearInfluence(); else applyInfluence(state.graphFocus); });
+  node.on("mouseenter", (ev, d) => {
+    if (tracePath.length === 0) {
+      canvas.classList.add("has-hover");
+      const adj = buildAdj();
+      const nb = neighbors(d.id, adj);
+      node.style("opacity", n => n.id === d.id || nb.has(n.id) ? 1 : 0.08);
+      link.style("opacity", e => { const [s, t] = eid(e); return (s === d.id || t === d.id) ? 0.6 : 0.02; });
+    }
+  });
+  node.on("mouseleave", () => {
+    if (tracePath.length === 0) {
+      canvas.classList.remove("has-hover");
+      node.style("opacity", 1);
+      link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7);
+    }
+  });
   node.on("click", (ev, d) => {
-    state.graphFocus = d.id;
-    applyInfluence(d.id);
-    document.getElementById("entity-panel").innerHTML = renderEntityPanel(d.id);
+    ev.stopPropagation();
+    if (tracePath.length === 0) {
+      tracePath = [d.id];
+      state.graphFocus = d.id;
+      renderTrace();
+    } else {
+      const adj = buildAdj();
+      const tip = tracePath[tracePath.length - 1];
+      const nb = neighbors(tip, adj);
+      if (nb.has(d.id) && !new Set(tracePath).has(d.id)) {
+        tracePath.push(d.id);
+        state.graphFocus = d.id;
+        renderTrace();
+      } else if (d.id === tracePath[tracePath.length - 1] && tracePath.length > 1) {
+        tracePath.pop();
+        state.graphFocus = tracePath[tracePath.length - 1];
+        renderTrace();
+      } else {
+        clearTrace();
+        tracePath = [d.id];
+        state.graphFocus = d.id;
+        renderTrace();
+      }
+    }
+  });
+  svg.on("click", (ev) => {
+    if (ev.target === svgEl || ev.target.tagName === "svg") clearTrace();
   });
 
   document.querySelectorAll(".graph-filter-btn").forEach(btn => {
