@@ -1404,7 +1404,7 @@ function transformHindsightGraph(raw) {
 
   const rawEdges = [...edgeMap.values()].sort((a, b) => b.count - a.count);
   const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
-  const visualEdges = rawEdges.map(e => ({ ...e, strength: Math.pow(e.count / maxC, 0.35) }));
+  const visualEdges = rawEdges.slice(0, 150).map(e => ({ ...e, strength: Math.pow(e.count / maxC, 0.35) }));
 
   return { nodes: visualNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
 }
@@ -2081,7 +2081,7 @@ async function mountGraph() {
     .force("charge", d3.forceManyBody().strength(-80))
     .force("cluster", clusterForce)
     .force("collision", d3.forceCollide().radius(d => (d._r || 3) + 10).strength(1))
-    .alphaDecay(0.02)
+    .alphaDecay(0.05)
     .on("tick", () => {
       link
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
