@@ -12,6 +12,7 @@
     "setup:hindsight": "op run --env-file=scripts/setup-hindsight.env -- node scripts/setup-hindsight.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@notionhq/client": "^4.0.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
