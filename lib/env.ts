@@ -22,6 +22,12 @@ const envSchema = z.object({
 
   // Source DB. Optional — the frontend feed doesn't need it; source workers do.
   NOTION_SHORT_TERM_MEMORY_DB_ID: z.string().optional(),
+
+  // Hindsight Cloud — memory engine for graph viz + Q&A.
+  HINDSIGHT_API_URL: z.string().optional(),
+  HINDSIGHT_API_KEY: z.string().optional(),
+  HINDSIGHT_NAMESPACE: z.string().optional(),
+  HINDSIGHT_BANK_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
