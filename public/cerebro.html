@@ -2038,7 +2038,7 @@ async function mountGraph() {
     while (queue.length > 0) {
       const { id, power } = queue.shift();
       for (const nb of (adj.get(id) || [])) {
-        const propagated = power * (0.3 + nb.strength * 0.7) * 0.65;
+        const propagated = power * (0.4 + nb.strength * 0.6) * 0.85;
         if (propagated < 0.02 || visited.has(nb.to)) continue;
         visited.add(nb.to);
         influence.set(nb.to, propagated);
