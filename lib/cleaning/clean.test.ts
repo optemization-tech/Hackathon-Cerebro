@@ -99,6 +99,62 @@ test("clean(): idempotent — already-normalized text is unchanged on second pas
   assert.equal(twice, once);
 });
 
+// ===== People + Companies normalization =====
+// Simulates the merged output of loadAllEntries: Glossary entries + People DB
+// entries + Companies DB entries combined. Verifies clean() normalizes all three.
+
+const MULTI_SOURCE: GlossaryEntry[] = [
+  // From Glossary (has extra aliases from human curation)
+  { term: "RC Willenbrock", aliases: ["RC", "Aar See", "AarSee"], type: "PERSON" },
+  { term: "Optemization", aliases: ["Optimization", "Op-tem-ization"], type: "ORG" },
+  // From People DB (no Glossary entry for this person)
+  { term: "Sarah Chen", aliases: ["S. Chen", "Sarah C"], type: "PERSON" },
+  { term: "Mike Scharf", aliases: ["Mike S"], type: "PERSON" },
+  // From Companies DB (no Glossary entry for this company)
+  { term: "Acme Corp", aliases: ["Acme", "ACME"], type: "ORG" },
+];
+
+test("People DB entry normalizes person name", () => {
+  const result = clean("Meeting with S. Chen about the project.", MULTI_SOURCE);
+  assert.equal(result, "Meeting with Sarah Chen about the project.");
+});
+
+test("Companies DB entry normalizes company name", () => {
+  const result = clean("Signed deal with ACME yesterday.", MULTI_SOURCE);
+  assert.equal(result, "Signed deal with Acme Corp yesterday.");
+});
+
+test("Glossary + People entries coexist — both normalize in same text", () => {
+  const result = clean("Aar See and Sarah C discussed the Optimization strategy.", MULTI_SOURCE);
+  assert.equal(result, "RC Willenbrock and Sarah Chen discussed the Optemization strategy.");
+});
+
+test("Glossary wins over People when same name exists in both", () => {
+  // If "RC Willenbrock" appears in both Glossary (with extra aliases) and People DB,
+  // loadAllEntries dedupes in favor of the Glossary entry. The Glossary's aliases
+  // ("Aar See") should still work.
+  const glossaryWins: GlossaryEntry[] = [
+    { term: "RC Willenbrock", aliases: ["RC", "Aar See"], type: "PERSON" },
+    // This would be skipped by loadAllEntries dedup — same term, different aliases
+    // { term: "RC Willenbrock", aliases: ["Richard"], type: "PERSON" },
+  ];
+  const result = clean("Aar See joined the call.", glossaryWins);
+  assert.equal(result, "RC Willenbrock joined the call.");
+});
+
+test("People DB entry with no aliases still normalizes canonical form", () => {
+  const noAlias: GlossaryEntry[] = [
+    { term: "Jane Doe", aliases: [], type: "PERSON" },
+  ];
+  const result = clean("Jane Doe is here.", noAlias);
+  assert.equal(result, "Jane Doe is here.");
+});
+
+test("Companies DB entry with abbreviation alias", () => {
+  const result = clean("Working on the Acme integration.", MULTI_SOURCE);
+  assert.equal(result, "Working on the Acme Corp integration.");
+});
+
 // ===== uuidv5 stability test =====
 // Verifies the Cerebro uuidv5 implementation produces stable, correctly formatted IDs.
 

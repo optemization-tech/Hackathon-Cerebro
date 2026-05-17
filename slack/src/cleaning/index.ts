@@ -1,3 +1,9 @@
 export { clean } from "./clean";
-export { loadGlossary } from "./glossary";
+export {
+  loadAllEntries,
+  loadCompanies,
+  loadGlossary,
+  loadPeople,
+} from "./glossary";
+export type { LoadAllEntriesConfig } from "./glossary";
 export type { CanonicalEntityType, EntityType, GlossaryEntry } from "./types";
