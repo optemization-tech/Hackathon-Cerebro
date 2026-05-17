@@ -27,6 +27,9 @@ const CATEGORIES = {
 
 type Category = keyof typeof CATEGORIES;
 
+const MAX_LIMIT = 50;
+const DEFAULT_LIMIT = 25;
+
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const category = (url.searchParams.get("category") as Category | null) ?? "decisions";
@@ -35,12 +38,16 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "unknown category" }, { status: 400 });
   }
 
+  const rawLimit = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
+  const limit = Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT));
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+
   try {
     const env = loadEnv();
     const dbId = env[CATEGORIES[category]];
-    const records = await listRecentRecords(dbId, 50);
+    const { results: records, nextCursor } = await listRecentRecords(dbId, limit, cursor);
     return NextResponse.json(
-      { category, records },
+      { category, records, nextCursor },
       { headers: { "Cache-Control": CACHE_CONTROL } },
     );
   } catch (err) {
