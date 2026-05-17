@@ -17,7 +17,7 @@ Last updated: 2026-05-17 (hackathon day 2, demo Sunday evening)
 
 - [ ] Shared cleaning library (`clean(content, glossary)`) — spec calls this MUST-ship
 - [ ] Glossary DB seeded with ~15 entries in Notion
-- [ ] Hindsight Indexer Worker — polls STM, calls `retain()`, marks Status: indexed
+- [x] Hindsight Indexer Worker (`indexer/`) — polls STM Status=pending, calls `retain()` (sync), flips to indexed/failed. Needs deploy.
 - [ ] Cerebro Sync Worker — receives Hindsight webhooks, classifies facts, writes to LTM DBs
 - [ ] Ask Cerebro Custom Agent + `askCerebro` tool
 - [ ] Q&A API (`/api/ask`) — calls Hindsight `reflect()`
