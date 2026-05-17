@@ -3,7 +3,7 @@ import type { Client as NotionClient } from "@notionhq/client";
 import { Worker } from "@notionhq/workers";
 import * as Schema from "@notionhq/workers/schema";
 import { fetchPageContent } from "./markdown.js";
-import { buildPreamble, type CalendarRow } from "./preamble.js";
+import { type CalendarRow } from "./preamble.js";
 
 const worker = new Worker();
 export default worker;
@@ -135,20 +135,28 @@ async function upsertMeeting(notion: NotionClient, calendarPage: NotionPage): Pr
 		return { id, pageId: "", pageUrl: "", created: false };
 	}
 
-	const preamble = buildPreamble(row);
-	const parts = [preamble];
-	if (summary.trim()) {
-		parts.push("## Summary\n");
-		parts.push(summary);
-	}
-	parts.push("## Raw Transcript\n");
+	const parts: string[] = [];
+	if (row.brief?.trim()) parts.push(row.brief.trim());
+	if (row.tldr?.trim()) parts.push(row.tldr.trim());
+	if (summary.trim()) parts.push(summary);
 	parts.push(transcript);
 	const markdown = parts.join("\n\n");
+
+	const meta: Record<string, string | null> = {
+		calendarPageId: calendarPage.id,
+		type: row.type,
+		source: row.source,
+		gcalUrl: row.gcalUrl,
+		recordingUrl: row.recordingUrl,
+		attendees: row.attendeesText,
+	};
 
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: row.title } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Notion Meetings" } },
+		Status: { select: { name: "pending" } },
+		Metadata: { rich_text: [{ type: "text", text: { content: JSON.stringify(meta) } }] },
 	};
 	if (row.lead) {
 		properties["Person Source"] = { people: [{ id: row.lead }] };
