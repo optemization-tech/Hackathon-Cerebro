@@ -2068,20 +2068,19 @@ async function mountGraph() {
 
   node.on("mouseenter", (ev, d) => {
     canvas.classList.add("has-hover");
-    const connected = new Set();
+    const neighbors = [];
     link.each(function(e) {
       const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-      if (s === d.id) connected.add(t);
-      if (t === d.id) connected.add(s);
+      if (s === d.id) neighbors.push({ id: t, strength: e.strength || 0, edge: e });
+      if (t === d.id) neighbors.push({ id: s, strength: e.strength || 0, edge: e });
     });
-    node.style("opacity", n => n.id === d.id || connected.has(n.id) ? 1 : 0.08);
-    link.style("opacity", e => {
-      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-      return (s === d.id || t === d.id) ? 0.6 : 0.02;
-    }).style("stroke-width", e => {
-      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-      return (s === d.id || t === d.id) ? 2 : 0.5;
-    });
+    neighbors.sort((a, b) => b.strength - a.strength);
+    const top = neighbors.slice(0, 5);
+    const topIds = new Set(top.map(n => n.id));
+    const topEdges = new Set(top.map(n => n.edge));
+    node.style("opacity", n => n.id === d.id || topIds.has(n.id) ? 1 : 0.06);
+    link.style("opacity", function(e) { return topEdges.has(e) ? 0.6 : 0.015; })
+      .style("stroke-width", function(e) { return topEdges.has(e) ? 2 : 0.3; });
   });
   node.on("mouseleave", () => {
     if (!state.graphFocus) {
