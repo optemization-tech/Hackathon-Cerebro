@@ -22,6 +22,7 @@ Built for the Notion Developer Platform Hackathon (May 16–17, San Francisco), 
 | Granola | — | Not started | Meeting recording source |
 | Circleback | — | Not started | Meeting transcription source |
 | Notion-Docs | `notion-docs/` | Built, needs deploy | Reads Docs DB → Hindsight `retain()` directly (bypasses STM) |
+| Glossary Proposer | `glossary-proposer/` | Built, needs deploy | Scans STM bodies → extracts AGENT/CONCEPT candidates → writes Proposed rows to Glossary DB |
 
 All source workers use the [Notion Workers SDK](https://developers.notion.com/docs/notion-workers) with backfill + delta syncs. Each is a standalone npm project with its own `package.json` and `tsconfig.json`.
 
