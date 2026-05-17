@@ -7,6 +7,8 @@ const worker = new Worker();
 export default worker;
 
 const STM_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
+const PEOPLE_DATA_SOURCE_ID = "c34cc2e0-79f7-4436-b826-220449c55184";
+const COMPANIES_DATA_SOURCE_ID = "b63f79ed-9f3b-4b7b-8b12-263263ba3d5d";
 const DEFAULT_MIN_FREQUENCY = 3;
 const MAX_BODY_FETCH_PER_CYCLE = 200;
 
@@ -105,6 +107,32 @@ function buildKnownTermsSet(entries: ExistingGlossaryEntry[]): Set<string> {
 		}
 	}
 	return known;
+}
+
+async function loadExclusionNames(
+	notion: NotionClient,
+	dataSourceId: string,
+	titleProp: string,
+): Promise<string[]> {
+	const names: string[] = [];
+	let cursor: string | undefined;
+
+	do {
+		const resp = await notion.dataSources.query({
+			data_source_id: dataSourceId,
+			page_size: 100,
+			...(cursor ? { start_cursor: cursor } : {}),
+		});
+
+		for (const page of resp.results as Array<{ id: string; properties: Record<string, unknown> }>) {
+			const name = titleText(page.properties[titleProp]);
+			if (name) names.push(name);
+		}
+
+		cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
+	} while (cursor);
+
+	return names;
 }
 
 async function writeCandidate(
@@ -208,6 +236,16 @@ async function proposeGlossaryCandidates(
 	const existing = await loadExistingGlossary(notion, glossaryDsId);
 	const knownTerms = buildKnownTermsSet(existing);
 	console.log(`[glossary-proposer] ${existing.length} entries (${knownTerms.size} terms+aliases)`);
+
+	// 1b. Load People + Companies DBs as additional exclusion sources
+	console.log("[glossary-proposer] Loading People + Companies for exclusion...");
+	const [peopleNames, companyNames] = await Promise.all([
+		loadExclusionNames(notion, PEOPLE_DATA_SOURCE_ID, "Name"),
+		loadExclusionNames(notion, COMPANIES_DATA_SOURCE_ID, "Company Name"),
+	]);
+	for (const name of peopleNames) knownTerms.add(name.toLowerCase());
+	for (const name of companyNames) knownTerms.add(name.toLowerCase());
+	console.log(`[glossary-proposer] Excluded ${peopleNames.length} people + ${companyNames.length} companies (${knownTerms.size} total known)`);
 
 	// 2. Query STM rows
 	console.log(`[glossary-proposer] Querying STM${since ? ` (since ${since})` : " (all)"}...`);
