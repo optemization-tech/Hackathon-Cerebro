@@ -25,20 +25,23 @@ import {
 	extractMeeting,
 	loadGlossaryOnce,
 	processMeeting,
+	retrofitMeetingPage,
 	SHORT_TERM_MEMORY_DATA_SOURCE_ID,
 } from "../src/processing";
 import type { CirclebackMeetingEvent } from "../src/processing";
 
-// Preload every existing `circleback:*` STM row into a Set so that:
+// Preload every existing `circleback:*` STM row into a Map<id, pageId> so:
 //   1. We do dedup in-memory (cheap) instead of issuing a Notion query per
 //      meeting (slow and rate-limit-prone).
 //   2. We sidestep Notion's eventual-consistency property indexing — a fresh
 //      page is queryable within seconds, but back-to-back backfill runs can
 //      race the indexer and create duplicates. Preloading once at run start
-//      collapses N reads into 1 and the in-process Set never goes stale
+//      collapses N reads into 1 and the in-process Map never goes stale
 //      relative to writes this run is doing.
-async function preloadExistingIds(notion: NotionClient): Promise<Set<string>> {
-	const ids = new Set<string>();
+//   3. --retrofit mode needs the pageId, not just the dedup ID, so it can
+//      call notion.pages.update / updateMarkdown on the existing row.
+async function preloadExistingIds(notion: NotionClient): Promise<Map<string, string>> {
+	const map = new Map<string, string>();
 	let cursor: string | undefined;
 	let page = 0;
 	while (true) {
@@ -49,17 +52,18 @@ async function preloadExistingIds(notion: NotionClient): Promise<Set<string>> {
 			start_cursor: cursor,
 		});
 		for (const row of res.results) {
+			const pageId = (row as { id?: string }).id;
 			const props = (row as { properties?: Record<string, unknown> }).properties ?? {};
 			const idProp = (props as { ID?: { rich_text?: Array<{ plain_text?: string }> } }).ID;
 			const text = idProp?.rich_text?.[0]?.plain_text;
-			if (text) ids.add(text);
+			if (text && pageId) map.set(text, pageId);
 		}
 		page++;
 		if (!res.has_more || !res.next_cursor) break;
 		cursor = res.next_cursor;
 	}
-	console.log(`[backfill] preloaded ${ids.size} existing 'Circleback transcript' STM row(s) across ${page} page(s)`);
-	return ids;
+	console.log(`[backfill] preloaded ${map.size} existing 'Circleback transcript' STM row(s) across ${page} page(s)`);
+	return map;
 }
 
 type Args = {
@@ -68,10 +72,18 @@ type Args = {
 	limit: number | null;
 	debug: boolean;
 	delayMs: number;
+	retrofit: boolean;
 };
 
 function parseArgs(argv: string[]): Args {
-	const args: Args = { inputPath: null, dryRun: false, limit: null, debug: false, delayMs: 250 };
+	const args: Args = {
+		inputPath: null,
+		dryRun: false,
+		limit: null,
+		debug: false,
+		delayMs: 250,
+		retrofit: false,
+	};
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--input" || a === "-i") {
@@ -84,9 +96,14 @@ function parseArgs(argv: string[]): Args {
 			args.debug = true;
 		} else if (a === "--delay-ms") {
 			args.delayMs = Number(argv[++i]);
+		} else if (a === "--retrofit") {
+			args.retrofit = true;
 		} else if (a === "--help" || a === "-h") {
 			console.log(
-				"Usage: tsx scripts/backfill.ts [--input <path>|stdin] [--dry-run] [--limit N] [--debug] [--delay-ms N]",
+				"Usage: tsx scripts/backfill.ts [--input <path>|stdin] [--dry-run] [--limit N] [--debug] [--delay-ms N] [--retrofit]",
+			);
+			console.log(
+				"  --retrofit  Rewrite existing rows (Name + body) using the current layout. Default: skip dedup hits.",
 			);
 			process.exit(0);
 		}
@@ -167,13 +184,14 @@ async function main() {
 
 	const [glossary, existingIds] = await Promise.all([
 		args.dryRun ? Promise.resolve([]) : loadGlossaryOnce(notion),
-		args.dryRun ? Promise.resolve(new Set<string>()) : preloadExistingIds(notion),
+		args.dryRun ? Promise.resolve(new Map<string, string>()) : preloadExistingIds(notion),
 	]);
 
 	const counts = {
 		processed: 0,
 		created: 0,
 		existed: 0,
+		retrofitted: 0,
 		skippedNoId: 0,
 		skippedNoTranscript: 0,
 		errors: 0,
@@ -218,9 +236,11 @@ async function main() {
 
 		// In-memory dedup: short-circuit before processMeeting even queries.
 		// processMeeting still does its own findExistingByID as a backstop,
-		// but the preloaded Set protects against indexer race conditions on
-		// back-to-back runs.
-		if (existingIds.has(idStr)) {
+		// but the preloaded Map protects against indexer race conditions on
+		// back-to-back runs. --retrofit overrides the skip and rewrites the
+		// existing row's Name + body to match the current layout.
+		const existingPageId = existingIds.get(idStr);
+		if (existingPageId && !args.retrofit) {
 			counts.existed++;
 			if (args.debug) {
 				console.log(`[backfill] [${i}] EXISTS  ${idStr} (preload hit) title="${meeting.title.slice(0, 60)}"`);
@@ -229,16 +249,30 @@ async function main() {
 		}
 
 		try {
-			const res = await withRetry(() => processMeeting(notion, meeting, glossary), `processMeeting ${idStr}`);
-			if (res.created) {
-				counts.created++;
-				existingIds.add(idStr); // keep the Set in sync as we write
+			if (existingPageId && args.retrofit) {
+				await withRetry(
+					() => retrofitMeetingPage(notion, existingPageId, meeting, glossary),
+					`retrofitMeetingPage ${idStr}`,
+				);
+				counts.retrofitted++;
+				console.log(
+					`[backfill] [${i}] RETROFIT ${idStr} → ${existingPageId} title="${meeting.title.slice(0, 60)}"`,
+				);
 			} else {
-				counts.existed++;
+				const res = await withRetry(
+					() => processMeeting(notion, meeting, glossary),
+					`processMeeting ${idStr}`,
+				);
+				if (res.created) {
+					counts.created++;
+					existingIds.set(idStr, res.pageId); // keep the Map in sync as we write
+				} else {
+					counts.existed++;
+				}
+				console.log(
+					`[backfill] [${i}] ${res.created ? "CREATED" : "EXISTS "} ${idStr} → ${res.pageId} title="${meeting.title.slice(0, 60)}"`,
+				);
 			}
-			console.log(
-				`[backfill] [${i}] ${res.created ? "CREATED" : "EXISTS "} ${idStr} → ${res.pageId} title="${meeting.title.slice(0, 60)}"`,
-			);
 		} catch (err) {
 			counts.errors++;
 			const message = err instanceof Error ? err.message : String(err);

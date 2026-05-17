@@ -225,18 +225,21 @@ export async function findExistingByID(notion: NotionClient, id: string): Promis
 	return null;
 }
 
-export async function processMeeting(
-	notion: NotionClient,
+// Builds the title, properties payload, and markdown body for a meeting.
+// Exported so the backfill script can reuse the exact same layout when
+// retrofitting existing rows via notion.pages.updateMarkdown.
+export type MeetingPageContent = {
+	id: string;
+	pageTitle: string;
+	properties: Record<string, unknown>;
+	markdown: string;
+};
+
+export function buildMeetingPageContent(
 	meeting: CirclebackMeeting,
 	glossary: GlossaryEntry[],
-): Promise<STMWriteResult> {
-	// Source-prefixed string ID (Wave 2 convention — no uuidv5).
+): MeetingPageContent {
 	const id = `circleback:${meeting.meetingId}`;
-
-	const existingPageId = await findExistingByID(notion, id);
-	if (existingPageId) {
-		return { id, pageId: existingPageId, created: false };
-	}
 
 	// Glossary normalization: clean title + summary + transcript.
 	const titleClean = clean(meeting.title, glossary);
@@ -248,10 +251,11 @@ export async function processMeeting(
 		transcriptClean.entities,
 	);
 
-	const titlePreview = titleClean.cleanedText.replace(/\s+/g, " ").slice(0, 100);
-	const startLabel = meeting.startTime ?? "";
-	const pageTitle = startLabel ? `[${startLabel}] ${titlePreview}` : titlePreview;
+	const pageTitle = (titleClean.cleanedText.trim() || "(untitled meeting)").slice(0, 2000);
 
+	// Metadata block — renders at the TOP of the page body so the date,
+	// attendees, and recording link are visible without scrolling past the
+	// summary + transcript.
 	const meta: string[] = [];
 	meta.push(`- **ID:** \`${id}\``);
 	if (meeting.startTime) meta.push(`- **Start:** ${meeting.startTime}`);
@@ -265,22 +269,18 @@ export async function processMeeting(
 		meta.push(`- **Attendees (${meeting.attendees.length}):** ${attendees.join(", ")}`);
 	}
 
-	const parts = [
-		`## ${titleClean.cleanedText.trim() || "(untitled meeting)"}`,
-		"",
-	];
-	if (summaryClean.cleanedText.trim()) {
-		parts.push("### Summary", "", summaryClean.cleanedText.trim(), "");
-	}
-	parts.push("### Transcript", "");
-	parts.push(transcriptClean.cleanedText.trim() || "_(no transcript captured)_");
-	parts.push("", "---", "", "### Metadata", "");
+	const parts: string[] = [];
 	parts.push(...meta);
+	if (summaryClean.cleanedText.trim()) {
+		parts.push("", "### Summary", "", summaryClean.cleanedText.trim());
+	}
+	parts.push("", "### Transcript", "");
+	parts.push(transcriptClean.cleanedText.trim() || "_(no transcript captured)_");
 	const markdown = parts.join("\n");
 
 	const properties: Record<string, unknown> = {
 		Name: {
-			title: [{ type: "text", text: { content: pageTitle.slice(0, 2000) } }],
+			title: [{ type: "text", text: { content: pageTitle } }],
 		},
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Circleback transcript" } },
@@ -290,14 +290,57 @@ export async function processMeeting(
 		},
 	};
 
+	return { id, pageTitle, properties, markdown };
+}
+
+export async function processMeeting(
+	notion: NotionClient,
+	meeting: CirclebackMeeting,
+	glossary: GlossaryEntry[],
+): Promise<STMWriteResult> {
+	const content = buildMeetingPageContent(meeting, glossary);
+
+	const existingPageId = await findExistingByID(notion, content.id);
+	if (existingPageId) {
+		return { id: content.id, pageId: existingPageId, created: false };
+	}
+
 	const page = await notion.pages.create({
 		parent: {
 			type: "data_source_id",
 			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
 		},
-		properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
-		markdown,
+		properties: content.properties as Parameters<typeof notion.pages.create>[0]["properties"],
+		markdown: content.markdown,
 	});
 
-	return { id, pageId: page.id, created: true };
+	return { id: content.id, pageId: page.id, created: true };
+}
+
+// Retrofit an existing STM row to match the current layout (used by the
+// backfill script's --retrofit flag). Updates the Name property and replaces
+// the entire body content with the freshly-built markdown.
+export async function retrofitMeetingPage(
+	notion: NotionClient,
+	pageId: string,
+	meeting: CirclebackMeeting,
+	glossary: GlossaryEntry[],
+): Promise<{ id: string; pageId: string }> {
+	const content = buildMeetingPageContent(meeting, glossary);
+
+	await notion.pages.update({
+		page_id: pageId,
+		properties: content.properties as Parameters<typeof notion.pages.update>[0]["properties"],
+	});
+
+	await notion.pages.updateMarkdown({
+		page_id: pageId,
+		type: "replace_content",
+		replace_content: {
+			new_str: content.markdown,
+			allow_deleting_content: true,
+		},
+	});
+
+	return { id: content.id, pageId };
 }
