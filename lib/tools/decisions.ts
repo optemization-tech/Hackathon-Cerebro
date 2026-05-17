@@ -59,12 +59,18 @@ async function loadNameCache(dbId: string): Promise<Map<string, string>> {
 }
 
 async function getPeopleCache(): Promise<Map<string, string>> {
-  if (!peopleCache) peopleCache = await loadNameCache(loadEnv().NOTION_PEOPLE_DB_ID);
+  if (!peopleCache) {
+    const id = loadEnv().NOTION_PEOPLE_DB_ID;
+    peopleCache = id ? await loadNameCache(id) : new Map();
+  }
   return peopleCache;
 }
 
 async function getCompaniesCache(): Promise<Map<string, string>> {
-  if (!companiesCache) companiesCache = await loadNameCache(loadEnv().NOTION_COMPANIES_DB_ID);
+  if (!companiesCache) {
+    const id = loadEnv().NOTION_COMPANIES_DB_ID;
+    companiesCache = id ? await loadNameCache(id) : new Map();
+  }
   return companiesCache;
 }
 
