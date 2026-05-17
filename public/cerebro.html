@@ -1183,7 +1183,11 @@ const SEED_DECK = [
 let state = { mode: "home", question: "", activeCitation: null, graphFocus: null, deckIndex: 0, kept: 0, archived: 0, history: [] };
 
 function setState(patch) {
+  const prevMode = state.mode;
   state = { ...state, ...patch };
+  if (prevMode !== state.mode && (prevMode === "answered" || prevMode === "avatar")) {
+    if (window.CerebroEL) window.CerebroEL.endActive();
+  }
   render();
 }
 
@@ -1304,33 +1308,37 @@ function mountAnswered() {
   const footer = document.getElementById("answer-footer");
   const rail = document.getElementById("citation-rail");
 
-  // stream the answer character-by-character
-  const text = SEED_ANSWER;
-  let i = 0;
-  let html = "";
   prose.innerHTML = '<span class="cursor"></span>';
+  let lastText = "";
 
-  const tick = () => {
-    if (i >= text.length) {
-      // finalize: replace newlines with paragraphs, wrap numerals in clickable spans
-      const final = text
-        .split("\n\n")
-        .map(p => "<p>" + p.replace(/(①|②|③|④)/g, '<span class="claim-ref" data-ref="$1">$1</span>') + "</p>")
-        .join("");
-      prose.innerHTML = final;
-      footer.style.transition = "opacity 400ms ease";
-      footer.style.opacity = "1";
-      rail.style.transition = "opacity 400ms ease";
-      rail.style.opacity = "1";
-      wireCitationHover();
-      return;
-    }
-    html += text[i] === "\n" ? "<br>" : text[i];
-    prose.innerHTML = html + '<span class="cursor"></span>';
-    i++;
-    setTimeout(tick, text[i-1] === "\n" ? 60 : 12);
+  const renderText = (text, withCursor) => {
+    const html = "<p>" + text.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>") + "</p>";
+    prose.innerHTML = html + (withCursor ? '<span class="cursor"></span>' : "");
   };
-  setTimeout(tick, 200);
+
+  const fail = (msg) => {
+    prose.innerHTML = `<p style="color:#c00">${msg}</p>`;
+  };
+
+  const waitForSdk = (tries = 0) => {
+    if (window.CerebroEL) return Promise.resolve();
+    if (tries > 50) return Promise.reject(new Error("SDK failed to load"));
+    return new Promise(r => setTimeout(r, 100)).then(() => waitForSdk(tries + 1));
+  };
+
+  waitForSdk()
+    .then(() => window.CerebroEL.startTextChat(state.question, {
+      onMessage: (text) => { lastText = text; renderText(text, true); },
+      onEnd: () => {
+        renderText(lastText || "(no response)", false);
+        footer.style.transition = "opacity 400ms ease";
+        footer.style.opacity = "1";
+        rail.style.transition = "opacity 400ms ease";
+        rail.style.opacity = "0.5";
+      },
+      onError: (msg) => fail(`Connection error: ${msg}. Make sure the agent is published in ElevenLabs.`)
+    }))
+    .catch(e => fail(e.message));
 }
 
 function wireCitationHover() {
@@ -1506,27 +1514,48 @@ function renderAvatar() {
 }
 
 function mountAvatar() {
-  const container = document.getElementById("live-citations");
-  SEED_CITATIONS.forEach((c, i) => {
-    setTimeout(() => {
-      const card = document.createElement("div");
-      card.className = "citation-card fade-up";
-      card.dataset.src = c.src;
-      card.innerHTML = `
-        <div class="frame-top">╭${"─".repeat(40)}╮</div>
-        <div class="frame-mid">
-          <div class="src-head">
-            <span class="src-num">${["①","②","③","④"][i]}</span>
-            <span class="src-name">${c.name}</span>
-            <span class="src-ts">${c.ts}</span>
-          </div>
-          <div class="snippet">${c.snippet}</div>
+  const statusEl = document.querySelector(".status-row span");
+  const liveContainer = document.getElementById("live-citations");
+  if (statusEl) statusEl.textContent = "connecting…";
+
+  const setStatus = (s) => { if (statusEl) statusEl.textContent = s; };
+  const escape = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const appendTurn = (who, text) => {
+    const card = document.createElement("div");
+    card.className = "citation-card fade-up";
+    card.innerHTML = `
+      <div class="frame-top">╭${"─".repeat(40)}╮</div>
+      <div class="frame-mid">
+        <div class="src-head">
+          <span class="src-name">${who === "user" ? "YOU" : "CEREBRO"}</span>
         </div>
-        <div class="frame-bot">╰${"─".repeat(40)}╯</div>
-      `;
-      container.appendChild(card);
-    }, 1000 + i * 1500);
-  });
+        <div class="snippet">${escape(text)}</div>
+      </div>
+      <div class="frame-bot">╰${"─".repeat(40)}╯</div>
+    `;
+    liveContainer.appendChild(card);
+  };
+
+  const waitForSdk = (tries = 0) => {
+    if (window.CerebroEL) return Promise.resolve();
+    if (tries > 50) return Promise.reject(new Error("SDK failed to load"));
+    return new Promise(r => setTimeout(r, 100)).then(() => waitForSdk(tries + 1));
+  };
+
+  waitForSdk()
+    .then(() => window.CerebroEL.startVoiceChat({
+      onStatus: (s) => {
+        if (s === "connected") setStatus("listening…");
+        else if (s === "speaking") setStatus("speaking…");
+        else if (s === "listening") setStatus("listening…");
+        else if (s === "ended") setStatus("ended");
+        else setStatus(s);
+      },
+      onMessage: (who, text) => appendTurn(who, text),
+      onError: (msg) => setStatus(`error: ${msg}`)
+    }))
+    .catch(e => setStatus(`error: ${e.message}`));
 }
 
 /* ─── review deck ─── */
@@ -1848,6 +1877,78 @@ fetch("/api/deck")
     if (state.mode === "home" || state.mode === "review") render();
   })
   .catch(() => { /* keep seed deck on failure */ });
+</script>
+
+<script type="module">
+// ElevenLabs Agents SDK bridge — exposes window.CerebroEL for the inline script.
+// Loaded as an ES module from esm.sh; falls back gracefully if offline.
+try {
+  const { Conversation } = await import("https://esm.sh/@elevenlabs/client@0.5.2");
+  const AGENT_ID = "agent_5401krsnx55xfcprbgf1j49y1a9q";
+  let active = null;
+
+  async function endActive() {
+    if (!active) return;
+    try { await active.endSession(); } catch {}
+    active = null;
+  }
+
+  function normalize(msg) {
+    if (typeof msg === "string") return msg;
+    if (msg && typeof msg === "object") return msg.message ?? msg.text ?? JSON.stringify(msg);
+    return String(msg);
+  }
+
+  window.CerebroEL = {
+    endActive,
+
+    async startTextChat(question, cb = {}) {
+      await endActive();
+      let assembled = "";
+      try {
+        active = await Conversation.startSession({
+          agentId: AGENT_ID,
+          textOnly: true,
+          onMessage: ({ source, message }) => {
+            if (source === "ai") {
+              assembled = message;
+              cb.onMessage?.(message);
+            }
+          },
+          onDisconnect: () => cb.onEnd?.(assembled),
+          onError: (m) => cb.onError?.(normalize(m)),
+        });
+        setTimeout(() => {
+          try { active?.sendUserMessage(question); }
+          catch (e) { cb.onError?.(normalize(e)); }
+        }, 400);
+      } catch (e) {
+        cb.onError?.(normalize(e));
+      }
+    },
+
+    async startVoiceChat(cb = {}) {
+      await endActive();
+      try {
+        active = await Conversation.startSession({
+          agentId: AGENT_ID,
+          onConnect: () => cb.onStatus?.("connected"),
+          onMessage: ({ source, message }) => {
+            const who = source === "ai" ? "ai" : "user";
+            cb.onMessage?.(who, message);
+          },
+          onModeChange: ({ mode }) => cb.onStatus?.(mode),
+          onDisconnect: () => cb.onStatus?.("ended"),
+          onError: (m) => cb.onError?.(normalize(m)),
+        });
+      } catch (e) {
+        cb.onError?.(normalize(e));
+      }
+    },
+  };
+} catch (e) {
+  console.error("Failed to load @elevenlabs/client:", e);
+}
 </script>
 
 </body>
