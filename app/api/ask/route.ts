@@ -4,6 +4,16 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export async function GET(): Promise<Response> {
+  return NextResponse.json({
+    status: "ok",
+    endpoint: "/api/ask",
+    method: "POST",
+    requiredHeaders: ["x-cerebro-key"],
+    spec: "docs/specs/cerebro.md:452",
+  });
+}
+
 const bodySchema = z.object({
   question: z.string().min(1, "question required"),
   scope: z
