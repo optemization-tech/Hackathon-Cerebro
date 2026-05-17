@@ -161,7 +161,8 @@ async function upsertSlackMessage(
 	};
 
 	let matchedNotionUserId: string | null = null;
-	if (msg.userEmail) {
+	const USER_LOOKUP_DISABLED = "__disabled__";
+	if (msg.userEmail && !userMatchCache?.has(USER_LOOKUP_DISABLED)) {
 		const target = msg.userEmail.toLowerCase();
 		if (userMatchCache?.has(target)) {
 			matchedNotionUserId = userMatchCache.get(target) ?? null;
@@ -184,7 +185,13 @@ async function upsertSlackMessage(
 					cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
 				} while (cursor);
 			} catch (err) {
-				console.warn("Failed to look up Notion user by email:", err);
+				const code = (err as { code?: string }).code;
+				if (code === "restricted_resource") {
+					console.warn("[slack] PAT cannot list users — disabling user matching for this run");
+					userMatchCache?.set(USER_LOOKUP_DISABLED, null);
+				} else {
+					console.warn("Failed to look up Notion user by email:", err);
+				}
 			}
 			userMatchCache?.set(target, matchedNotionUserId);
 		}
@@ -280,7 +287,9 @@ async function loadExistingSlackMessageIds(
 ): Promise<Map<string, { pageId: string }>> {
 	const cache = new Map<string, { pageId: string }>();
 	let cursor: string | undefined;
+	let pageNum = 0;
 	do {
+		if (pageNum > 0) await new Promise((r) => setTimeout(r, 350));
 		const resp = await notion.dataSources.query({
 			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
 			filter: { property: "Data Type", select: { equals: "Slack message" } },
@@ -299,6 +308,7 @@ async function loadExistingSlackMessageIds(
 			}
 		}
 		cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
+		pageNum++;
 	} while (cursor);
 	return cache;
 }
@@ -307,6 +317,7 @@ async function loadExistingSlackMessageIds(
 
 type PullOptions = {
 	oldest: string | undefined;
+	latest: string | undefined;
 	autoJoinPublicChannels: boolean;
 	includeThreads: boolean;
 	fetchPermalinks: boolean;
@@ -439,6 +450,7 @@ async function pullSlackHistory(
 		}
 
 		try {
+			if (messagesProcessed > 1) await new Promise((r) => setTimeout(r, 200));
 			const result = await upsertSlackMessage(
 				notion,
 				{
@@ -499,6 +511,7 @@ async function pullSlackHistory(
 					limit: 200,
 					cursor: historyCursor,
 					oldest: effectiveOldest,
+					...(options.latest ? { latest: options.latest } : {}),
 				});
 				const messages = (resp.messages ?? []) as Array<{
 					ts?: string;
@@ -610,8 +623,17 @@ worker.sync("slackBackfill", {
 	schedule: "manual",
 	execute: async (_state, { notion }) => {
 		const slack = requireSlackClient();
+		const backfillSince = process.env.BACKFILL_SINCE;
+		const backfillUntil = process.env.BACKFILL_UNTIL;
+		const oldest = backfillSince
+			? (new Date(backfillSince).getTime() / 1000).toString()
+			: undefined;
+		const latest = backfillUntil
+			? (new Date(backfillUntil).getTime() / 1000).toString()
+			: undefined;
 		const result = await pullSlackHistory(slack, notion, {
-			oldest: undefined,
+			oldest,
+			latest,
 			autoJoinPublicChannels: true,
 			includeThreads: true,
 			fetchPermalinks: false,
@@ -639,6 +661,7 @@ worker.sync("slackDelta", {
 
 		const result = await pullSlackHistory(slack, notion, {
 			oldest,
+			latest: undefined,
 			autoJoinPublicChannels: false,
 			includeThreads: true,
 			fetchPermalinks: false,
