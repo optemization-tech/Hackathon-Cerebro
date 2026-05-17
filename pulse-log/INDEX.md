@@ -8,3 +8,4 @@ Daily session journal for the Hackathon-Cerebro repo. Each line: `date / @author
 - 2026-05-17 / @optemism / pulse-log/05.17/001-optemism-trace-source-notion-hindsight.md — Traced source:notion Hindsight content to parked Wave 2 indexer; established data-type-only tag convention; backlogged cleanup.
 - 2026-05-17 / @optemism / pulse-log/05.17/002-optemism-stm-hindsight-pipeline-u1-align-conventions.md — Wave 1, Session 1.1: align Status/bank/Source conventions for STM→Hindsight pipeline (PR #54).
 - 2026-05-17 / @optemism / pulse-log/05.17/003-optemism-stm-hindsight-pipeline-u2-refactor-slack-worker.md — Wave 2, Session 2.1: refactor Slack worker for narrative-only STM body + Metadata JSON property (PR #62).
+- 2026-05-17 / @optemism / pulse-log/05.17/004-optemism-refactor-meetings-ingest.md — Wave 2, Session 2.3: meetings-ingest narrative-only body + Status pending + Metadata property (PR #61).
