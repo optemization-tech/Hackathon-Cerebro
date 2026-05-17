@@ -2126,9 +2126,18 @@ async function mountGraph() {
       el.addEventListener("mouseenter", () => {
         const parentId = state.graphFocus;
         if (!parentId) return;
+        const fid = el.dataset.factId;
+        const related = new Set([parentId]);
+        if (fid) nodes.forEach(n => { if ((n.facts || []).some(f => f.id === fid)) related.add(n.id); });
         canvas.classList.add("has-hover");
-        node.style("opacity", n => n.id === parentId ? 1 : 0.1);
-        link.style("opacity", 0.015).style("stroke-width", 0.3);
+        node.style("opacity", n => related.has(n.id) ? 1 : 0.08);
+        const relEdges = new Set();
+        link.each(function(e) {
+          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+          if (related.has(s) && related.has(t)) relEdges.add(e);
+        });
+        link.style("opacity", function(e) { return relEdges.has(e) ? 0.6 : 0.015; })
+          .style("stroke-width", function(e) { return relEdges.has(e) ? 2 : 0.3; });
         el.classList.add("highlighted");
       });
       el.addEventListener("mouseleave", () => {
