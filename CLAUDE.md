@@ -21,7 +21,7 @@ Built for the Notion Developer Platform Hackathon (May 16–17, San Francisco), 
 | Cerebro Sync | — | Not started | Will receive Hindsight webhooks → classify → write to Long-Term Memory |
 | Granola | — | Not started | Meeting recording source |
 | Circleback | — | Not started | Meeting transcription source |
-| Notion-Docs | — | Not started | Watches org Docs DB |
+| Notion-Docs | `notion-docs/` | Built, needs deploy | Reads Docs DB → Hindsight `retain()` directly (bypasses STM) |
 
 All source workers use the [Notion Workers SDK](https://developers.notion.com/docs/notion-workers) with backfill + delta syncs. Each is a standalone npm project with its own `package.json` and `tsconfig.json`.
 
@@ -39,8 +39,9 @@ All source workers use the [Notion Workers SDK](https://developers.notion.com/do
 - `slack/` — Slack source worker (Notion Workers SDK). Deployed and running.
 - `google/` — Google source worker (Notion Workers SDK). GMail + GCal via domain-wide delegation. Built, needs deploy.
 - `workers/meetings-ingest/` — Meetings ingest worker (Notion Workers SDK). Reads Notion Calendar DB. Deployed and running.
+- `notion-docs/` — Notion Docs source worker (Notion Workers SDK). Reads Docs DB → Hindsight retain directly (bypasses STM). Built, needs deploy.
 - `indexer/` — Hindsight Indexer worker (Notion Workers SDK). Bridges STM → Hindsight retain. Built, needs deploy.
-- `scripts/` — One-off setup scripts (Hindsight bootstrap, calendar introspection).
+- `scripts/` — One-off setup scripts (Hindsight bootstrap, calendar introspection, old doc cleanup).
 - `docs/specs/cerebro.md` — the single source of truth for architecture and scope.
 
 ---
