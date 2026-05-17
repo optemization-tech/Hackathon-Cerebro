@@ -1372,7 +1372,7 @@ function transformHindsightGraph(raw) {
     en.facts = en.facts.slice(0, 15);
   }
   allEntities.sort((a, b) => b.factCount - a.factCount);
-  const entityCut = Math.ceil(allEntities.length * 0.6);
+  const entityCut = Math.ceil(allEntities.length * 0.4);
   for (const en of allEntities.slice(0, entityCut)) visualNodes.push(en);
 
   const typeBuckets = new Map();
@@ -1383,7 +1383,7 @@ function transformHindsightGraph(raw) {
   }
   for (const [type, bucket] of typeBuckets) {
     bucket.sort((a, b) => b.factCount - a.factCount);
-    const top = bucket.slice(0, Math.ceil(bucket.length * 0.6));
+    const top = bucket.slice(0, Math.ceil(bucket.length * 0.4));
     for (const tn of top) visualNodes.push(tn);
   }
 
@@ -2008,7 +2008,13 @@ async function mountGraph() {
     const deg = degree.get(d.id) || 1;
     const r = 2 + Math.pow(deg / maxDeg, 0.5) * 12;
     d._r = r;
+    const TYPE_ICONS = { person: "👤", company: "🏢", decision: "⚖️", insight: "💡", signal: "📡", pattern: "🔁", strategy: "🎯", framework: "🧩" };
     el.append("circle").attr("r", r).attr("fill", TYPE_COLORS[d.type] || "#999").attr("opacity", 0.8);
+    if (r > 5) {
+      el.append("text").attr("text-anchor", "middle").attr("dominant-baseline", "central")
+        .style("font-size", Math.max(r * 0.9, 8) + "px").style("pointer-events", "none")
+        .text(TYPE_ICONS[d.type] || "");
+    }
     if (r > 6) {
       el.append("text").attr("class", "graph-node-label").attr("y", r + 10)
         .attr("text-anchor", "middle").style("font-size", "9px")
@@ -2071,10 +2077,10 @@ async function mountGraph() {
   }
 
   graphSim = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(edges).id(d => d.id).distance(60).strength(d => 0.02 + (d.strength || 0) * 0.08))
-    .force("charge", d3.forceManyBody().strength(-40))
+    .force("link", d3.forceLink(edges).id(d => d.id).distance(80).strength(d => 0.01 + (d.strength || 0) * 0.05))
+    .force("charge", d3.forceManyBody().strength(-80))
     .force("cluster", clusterForce)
-    .force("collision", d3.forceCollide().radius(d => (d._r || 3) + 4))
+    .force("collision", d3.forceCollide().radius(d => (d._r || 3) + 10).strength(1))
     .alphaDecay(0.02)
     .on("tick", () => {
       link
