@@ -9,10 +9,10 @@ const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 export async function GET(): Promise<Response> {
   try {
     const env = loadEnv();
-    const apiUrl = env.HINDSIGHT_API_URL ?? "https://api.hindsight.vectorize.io";
-    const apiKey = env.HINDSIGHT_API_KEY ?? process.env.HINDSIGHT_TOKEN;
-    const ns = env.HINDSIGHT_NAMESPACE ?? "default";
-    const bankId = env.HINDSIGHT_BANK_ID ?? "Cerebro";
+    const apiUrl = env.HINDSIGHT_API_URL ?? process.env.HINDSIGHT_API_URL ?? "https://api.hindsight.vectorize.io";
+    const apiKey = env.HINDSIGHT_API_KEY ?? process.env.HINDSIGHT_API_KEY ?? process.env.HINDSIGHT_TOKEN;
+    const ns = env.HINDSIGHT_NAMESPACE ?? process.env.HINDSIGHT_NAMESPACE ?? "default";
+    const bankId = env.HINDSIGHT_BANK_ID ?? process.env.HINDSIGHT_BANK_ID ?? "Cerebro";
 
     if (!apiKey) {
       return NextResponse.json(
