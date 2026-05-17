@@ -78,34 +78,85 @@ Reviewed 6 briefs (1 per format × 3 channels: #picnic-health, #people, #mouse).
 Average answer length: Format A = 2850 chars, Format B = 2556 chars.
 Citations (`based_on`): null for all queries (Hindsight limitation, not format-dependent).
 
-### Interpretation
+### Interpretation (heuristic)
 
-Hindsight's consolidation layer normalizes both formats into the same underlying knowledge graph. The reflect API returns comparably rich, specific, zero-hedge answers regardless of which format was ingested. This result holds across 7 channels spanning client engagements (#picnic-health, #temporal, #mouse), internal coordination (#temporal-internal, #mouse-internal, #delivery), and bot-heavy team channels (#people).
+The heuristic scoring (answer length, hedge count) treats both formats as equivalent. But this scoring is a weak proxy — it measures output volume, not whether the facts are correct or how many were surfaced. The LLM-as-judge eval below addresses this directly.
 
-**The choice between A and B does not meaningfully affect downstream retrieval quality.** Hindsight extracts the same facts from both.
+## LLM-as-judge eval (precision / recall / accuracy)
 
-The "Open tasks" query showed Format B returning a raw JSON memory-ID blob (1,047 chars vs Format A's 2,575 chars of structured prose) — this is a Hindsight consolidation artifact, not a format-dependent outcome.
+### Methodology
+
+Same 7 queries and reflect answers as above, but scored by Claude Sonnet 4 as a structured judge. For each query × format pair, the judge received the reflect answer AND all 27 source briefs for that format as ground truth. It scored:
+
+- **Discrete items**: count of distinct factual claims (not vague generalizations)
+- **Precision**: fraction of claims actually supported by source briefs (0.0–1.0)
+- **Recall**: fraction of source brief facts surfaced in the answer (0.0–1.0)
+- **Specificity**: concreteness rating (1–5)
+- **Hallucinated claims**: specific facts in the answer NOT in any source brief
+
+### Results
+
+| Query | A items | A precision | A recall | B items | B precision | B recall | Winner |
+|---|---|---|---|---|---|---|---|
+| Decisions | 19 | 0.89 | 0.85 | 8 | 1.00 | 0.45 | **A** |
+| Stress signals | 28 | 0.64 | 0.75 | 25 | 0.68 | 0.72 | **B** |
+| People + Projects | 25 | 0.16 | 0.15 | 20 | 0.20 | 0.18 | tie |
+| Strategies | 11 | 0.27 | 0.40 | 15 | 0.47 | 0.60 | **B** |
+| Patterns | 18 | 0.33 | 0.35 | 22 | 0.32 | 0.45 | **B** |
+| Insights | 12 | 0.25 | 0.30 | 8 | 0.38 | 0.45 | **B** |
+| Open tasks | 18 | 0.00 | 0.30 | 0 | 0.00 | 0.00 | **A** |
+
+**Overall: Format A wins 2, Format B wins 4, Ties 1.**
+
+### Aggregated metrics
+
+| Metric | Format A | Format B |
+|---|---|---|
+| Avg discrete items per query | 18.7 | 14.0 |
+| Avg precision | 0.36 | 0.44 |
+| Avg recall | 0.44 | 0.41 |
+| Avg specificity | 3.6 / 5 | 3.1 / 5 |
+| Total hallucinated claims | 83 | 61 |
+
+### Interpretation (LLM judge)
+
+The LLM judge reveals a pattern the heuristic scoring completely missed:
+
+1. **Format A produces more claims but lower precision.** It surfaces ~33% more discrete items per query (18.7 vs 14.0) but only 36% of those are actually supported by the source briefs. Format B surfaces fewer items but 44% are supported — a meaningfully higher accuracy rate.
+
+2. **Format A generates more hallucinations.** 83 total unsupported claims vs 61 for Format B. The structured sections appear to encourage Hindsight's consolidation layer to fill in category slots even when the source material doesn't support it.
+
+3. **Both formats have low absolute precision.** Neither exceeds 0.44 average precision — Hindsight is synthesizing heavily beyond what's in the briefs regardless of format. This is a Hindsight behavior, not purely a format issue, but Format A amplifies it.
+
+4. **Recall is comparable.** Both formats capture roughly the same fraction of source facts (0.44 vs 0.41), suggesting the raw information extraction from Slack messages is similar in both.
+
+5. **Format A excels on structured queries.** "Decisions" (p=0.89) and "Open tasks" show Format A's strength: when the query maps directly to a section header, Format A's explicit structure gives Hindsight better extraction targets. But this advantage doesn't generalize to fuzzier queries (Strategies, Patterns, Insights).
+
+6. **Format B wins on fuzzier/interpretive queries.** Strategies, Patterns, Insights, Stress signals — Format B's narrative structure produces more precise answers for queries that require synthesis across topics rather than lookup within a category.
 
 ## Trade-off summary
 
 | Consideration | Favors Format A | Favors Format B |
 |---|---|---|
-| Hindsight retrieval quality | — | — |
+| Retrieval precision (fewer hallucinations) | | Yes (0.44 vs 0.36) |
+| Retrieval quantity (more items surfaced) | Yes (18.7 vs 14.0) | |
+| Retrieval recall (coverage of source facts) | Roughly equal | Roughly equal |
+| Structured/lookup queries (Decisions, Tasks) | Yes | |
+| Fuzzy/interpretive queries (Strategies, Patterns) | | Yes |
 | Human spot-checking at scale | Yes (scannable sections) | |
 | Token efficiency (shorter briefs = cheaper backfill) | | Yes (30-60% shorter) |
 | Category mapping to LTM DB types | Yes (1:1 section → DB type) | |
 | Causal/temporal context for readers | | Yes (narrative flow) |
-| Information density (discrete facts) | Yes | |
-| Bot-heavy channel handling | Equal | Equal |
+| Total hallucinations from Hindsight | | Yes (61 vs 83) |
 
 ## Recommendation (non-binding — awaiting human override)
 
-The data does not produce a clear automated winner. Both formats are equally effective for Hindsight's knowledge extraction. The decision reduces to a **human judgment call** on which secondary properties matter more:
+The LLM-judge eval shifts the picture from "no difference" to a meaningful trade-off:
 
-- If **human auditability and LTM routing** matter more → Format A
-- If **token cost and narrative readability** matter more → Format B
+- **Format A** is better when you need **exhaustive enumeration** of a known category (Decisions, Tasks) and can tolerate more false positives. Good for structured extraction into LTM databases where a human or downstream filter catches hallucinations.
+- **Format B** is better when you need **higher-accuracy synthesis** across topics and want fewer hallucinated claims. Better for Ask Cerebro / reflect queries where the user trusts the answer at face value.
 
-The prior run's recommendation of Format A was based on the same reasoning (higher density, better spot-checking, LTM mapping). The wider sample confirms the structural trade-offs but does not change the retrieval parity.
+Neither format dominates. The choice depends on which downstream consumers matter more: structured LTM writes (favor A) or conversational Q&A (favor B).
 
 ## Experiment artifacts
 
