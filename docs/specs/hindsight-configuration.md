@@ -42,7 +42,7 @@ During `reflect`, the agent checks in priority order: Mental Models > Observatio
 
 ## Bank architecture decision: one bank
 
-One bank (`optemization-cerebro`) for V1. Tags handle scoping.
+One bank (`Cerebro`) for V1. Tags handle scoping.
 
 Why not 11 banks (one per LTM category)? Banks are fully isolated -- no cross-bank knowledge graph. If "Alice" appears in a decision and a task and a project, those connections must live in one graph. Multi-bank fragments the entity graph, which is Hindsight's primary value-add.
 
@@ -240,7 +240,7 @@ entities: [
 
 ```typescript
 await client.retain({
-  bank_id: "optemization-cerebro",
+  bank_id: "Cerebro",
   content: cleanedBody,
   context: `${row.dataType} from ${row.source} by ${row.personSource}`,
   timestamp: sourceTimestamp,        // from the source system, not ingestion time
@@ -344,7 +344,7 @@ From Hindsight's official best practices:
 
 | Hindsight concept | Cerebro equivalent | Notes |
 |---|---|---|
-| Memory bank | The brain (`optemization-cerebro`) | One bank for V1 |
+| Memory bank | The brain (`Cerebro`) | One bank for V1 |
 | World fact | People, Companies, Decisions, Projects, Tasks, Insights, Signals | Classified via entity labels |
 | Experience fact | Ask Cerebro's own interactions | What the agent did/recommended |
 | Observation | Patterns | Auto-consolidated from facts |
@@ -366,7 +366,7 @@ Source Workers (Slack, Granola, Circleback, GMail, GCal, Notion-Docs)
 Short-Term Memory (Notion DB, cleaned text)
     |
     v
-Indexer Worker -- retain() --> Hindsight bank (optemization-cerebro)
+Indexer Worker -- retain() --> Hindsight bank (Cerebro)
                                   |-- facts extracted (entity-labeled)
                                   |-- entities linked (knowledge graph)
                                   |-- observations consolidated (async)

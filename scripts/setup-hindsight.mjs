@@ -18,12 +18,12 @@
 // Optional env:
 //   HINDSIGHT_API_URL   — defaults to https://api.hindsight.vectorize.io
 //   HINDSIGHT_NAMESPACE — defaults to "default"
-//   HINDSIGHT_BANK_ID   — defaults to "optemization-cerebro"
+//   HINDSIGHT_BANK_ID   — defaults to "Cerebro"
 
 const API_URL = (process.env.HINDSIGHT_API_URL ?? "https://api.hindsight.vectorize.io").replace(/\/$/, "");
 const API_KEY = process.env.HINDSIGHT_API_KEY;
 const NAMESPACE = process.env.HINDSIGHT_NAMESPACE ?? "default";
-const BANK_ID = process.env.HINDSIGHT_BANK_ID ?? "optemization-cerebro";
+const BANK_ID = process.env.HINDSIGHT_BANK_ID ?? "Cerebro";
 
 if (!API_KEY) {
   console.error("HINDSIGHT_API_KEY is required. Inject it via `op run --env-file=...`.");
