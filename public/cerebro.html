@@ -2147,9 +2147,16 @@ async function mountGraph() {
       });
       el.addEventListener("mouseenter", () => {
         const nid = el.dataset.nodeId;
+        const pid = state.graphFocus;
         canvas.classList.add("has-hover");
-        node.style("opacity", n => n.id === nid || n.id === state.graphFocus ? 1 : 0.1);
-        link.style("opacity", 0.015).style("stroke-width", 0.3);
+        node.style("opacity", n => n.id === nid || n.id === pid ? 1 : 0.08);
+        link.style("opacity", function(e) {
+          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+          return (s === pid && t === nid) || (s === nid && t === pid) ? 0.8 : 0.015;
+        }).style("stroke-width", function(e) {
+          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+          return (s === pid && t === nid) || (s === nid && t === pid) ? 3 : 0.3;
+        });
       });
       el.addEventListener("mouseleave", () => {
         if (state.graphFocus) showConnections(state.graphFocus);
