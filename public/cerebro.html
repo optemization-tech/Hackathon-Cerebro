@@ -1327,97 +1327,83 @@ function transformHindsightGraph(raw) {
   if (!raw || !raw.nodes || !raw.edges) return null;
 
   const factMap = new Map();
-  const personFacts = new Map();
-  const entityFacts = new Map();
-  const typeFacts = new Map();
-
   for (const n of raw.nodes) {
     const d = n.data;
     const { tags, names } = parseEntityTags(d.entities);
-    const parsed = { id: d.id, text: d.text, date: d.date, context: d.context, tags, names, unitType: tags.unit_type };
-    factMap.set(d.id, parsed);
-
-    const person = tags["person-source"];
-    if (person) {
-      if (!personFacts.has(person)) personFacts.set(person, []);
-      personFacts.get(person).push(parsed);
-    }
-    if (parsed.unitType && TYPE_LABELS[parsed.unitType]) {
-      if (!typeFacts.has(parsed.unitType)) typeFacts.set(parsed.unitType, []);
-      typeFacts.get(parsed.unitType).push(parsed);
-    }
+    factMap.set(d.id, { id: d.id, text: d.text, date: d.date, context: d.context, tags, names, unitType: tags.unit_type });
   }
 
+  const entityNodes = new Map();
   for (const e of raw.edges) {
     if (e.data.linkType === "entity" && e.data.entityName) {
       const name = e.data.entityName;
-      if (KNOWN_PEOPLE.has(name.toLowerCase())) continue;
-      if (!entityFacts.has(name)) entityFacts.set(name, new Set());
-      const set = entityFacts.get(name);
-      const src = factMap.get(e.data.source);
-      const tgt = factMap.get(e.data.target);
-      if (src) set.add(src);
-      if (tgt) set.add(tgt);
+      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+      if (!entityNodes.has(key)) {
+        const isPerson = KNOWN_PEOPLE.has(name.toLowerCase());
+        entityNodes.set(key, { id: "ent-" + key, type: isPerson ? "person" : "company", label: name, connections: new Set(), facts: [] });
+      }
+      entityNodes.get(key).connections.add(e.data.source);
+      entityNodes.get(key).connections.add(e.data.target);
     }
   }
 
+  const typeNodes = new Map();
+  for (const [fid, fact] of factMap) {
+    const ut = fact.unitType;
+    if (!ut || !TYPE_LABELS[ut]) continue;
+    const label = firstSentence(fact.text) || ut;
+    const id = ut + "-" + fid.slice(0, 12);
+    typeNodes.set(fid, { id, type: ut, label, factId: fid, facts: [fact], connections: new Set(), date: fact.date });
+  }
+
+  for (const e of raw.edges) {
+    const sn = typeNodes.get(e.data.source);
+    const tn = typeNodes.get(e.data.target);
+    if (sn) sn.connections.add(e.data.target);
+    if (tn) tn.connections.add(e.data.source);
+  }
+
   const visualNodes = [];
-  const factToVisual = new Map();
 
-  for (const [person, facts] of personFacts) {
-    const id = "p-" + person.toLowerCase().replace(/\s+/g, "-");
-    const label = person.charAt(0).toUpperCase() + person.slice(1);
-    visualNodes.push({ id, type: "person", label, factCount: facts.length, facts });
-    for (const f of facts) factToVisual.set(f.id, id);
+  for (const [, en] of entityNodes) {
+    en.factCount = en.connections.size;
+    for (const fid of en.connections) { const f = factMap.get(fid); if (f) en.facts.push(f); }
+    en.facts = en.facts.slice(0, 15);
+    if (en.factCount >= 3) visualNodes.push(en);
   }
 
-  for (const [name, factSet] of entityFacts) {
-    const facts = [...factSet];
-    if (facts.length < 2) continue;
-    const id = "e-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30);
-    if (visualNodes.some(n => n.id === id)) continue;
-    visualNodes.push({ id, type: "company", label: name, factCount: facts.length, facts });
-    for (const f of facts) { if (!factToVisual.has(f.id)) factToVisual.set(f.id, id); }
+  const typeBuckets = new Map();
+  for (const [, tn] of typeNodes) {
+    tn.factCount = tn.connections.size;
+    if (!typeBuckets.has(tn.type)) typeBuckets.set(tn.type, []);
+    typeBuckets.get(tn.type).push(tn);
+  }
+  for (const [type, bucket] of typeBuckets) {
+    bucket.sort((a, b) => b.factCount - a.factCount);
+    const top = bucket.slice(0, 15);
+    for (const tn of top) visualNodes.push(tn);
   }
 
-  for (const [unitType, facts] of typeFacts) {
-    const id = "t-" + unitType;
-    visualNodes.push({ id, type: unitType, label: TYPE_LABELS[unitType] + " (" + facts.length + ")", factCount: facts.length, facts });
-    for (const f of facts) { if (!factToVisual.has(f.id)) factToVisual.set(f.id, id); }
-  }
+  const nodeIds = new Set(visualNodes.map(n => n.id));
+  const factToNode = new Map();
+  for (const [, tn] of typeNodes) { if (nodeIds.has(tn.id)) factToNode.set(tn.factId, tn.id); }
+  for (const [, en] of entityNodes) { if (nodeIds.has(en.id)) { for (const fid of en.connections) { if (!factToNode.has(fid)) factToNode.set(fid, en.id); } } }
 
   const edgeMap = new Map();
   for (const e of raw.edges) {
-    const srcV = factToVisual.get(e.data.source);
-    const tgtV = factToVisual.get(e.data.target);
-    if (!srcV || !tgtV || srcV === tgtV) continue;
-    const key = srcV < tgtV ? srcV + "|" + tgtV : tgtV + "|" + srcV;
-    if (!edgeMap.has(key)) edgeMap.set(key, { source: srcV, target: tgtV, types: new Set(), totalWeight: 0, count: 0 });
-    const edge = edgeMap.get(key);
-    edge.types.add(e.data.linkType);
-    edge.totalWeight += e.data.weight;
-    edge.count++;
+    const sv = factToNode.get(e.data.source);
+    const tv = factToNode.get(e.data.target);
+    if (!sv || !tv || sv === tv) continue;
+    const key = sv < tv ? sv + "|" + tv : tv + "|" + sv;
+    if (!edgeMap.has(key)) edgeMap.set(key, { source: sv, target: tv, count: 0 });
+    edgeMap.get(key).count++;
   }
 
-  const LINK_PRIORITY = { caused_by: 4, entity: 3, semantic: 2, temporal: 1 };
-  const rawEdges = [...edgeMap.values()]
-    .map(e => ({
-      source: e.source, target: e.target,
-      avgWeight: e.totalWeight / e.count,
-      primaryType: [...e.types].sort((a, b) => (LINK_PRIORITY[b] || 0) - (LINK_PRIORITY[a] || 0))[0],
-      count: e.count
-    }))
-    .sort((a, b) => b.count - a.count);
-
+  const rawEdges = [...edgeMap.values()].sort((a, b) => b.count - a.count);
   const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
-  const visualEdges = rawEdges
-    .map(e => ({ ...e, strength: maxC > 1 ? Math.pow(e.count / maxC, 0.35) : 0.5 }));
+  const visualEdges = rawEdges.map(e => ({ ...e, strength: Math.pow(e.count / maxC, 0.35) }));
 
-  const connectedIds = new Set();
-  visualEdges.forEach(e => { connectedIds.add(e.source); connectedIds.add(e.target); });
-  const connectedNodes = visualNodes.filter(n => connectedIds.has(n.id));
-
-  return { nodes: connectedNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
+  return { nodes: visualNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
 }
 
 const SEED_DECK = [
@@ -1941,54 +1927,66 @@ async function mountGraph() {
   const svg = d3.select(svgEl).attr("viewBox", `0 0 ${W} ${H}`).attr("preserveAspectRatio", "xMidYMid meet");
   svg.selectAll("*").remove();
 
-  const defs = svg.append("defs");
-  const arrowTypes = [
-    { id: "entity", color: "var(--ink-muted)" },
-    { id: "semantic", color: "var(--ink-muted)" },
-    { id: "temporal", color: "var(--ink-muted)" },
-    { id: "caused_by", color: "var(--accent)" }
-  ];
-  arrowTypes.forEach(t => {
-    defs.append("marker").attr("id", "arrow-" + t.id)
-      .attr("viewBox", "0 -5 10 10").attr("refX", 22).attr("refY", 0)
-      .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
-      .append("path").attr("d", "M0,-4L10,0L0,4").attr("fill", t.color).attr("opacity", 0.6);
-  });
+  svg.append("defs");
+
+  const TYPE_COLORS = {
+    person: "#374151", company: "#6b7280", decision: "#6366f1",
+    insight: "#8b5cf6", signal: "#10b981", pattern: "#f59e0b",
+    strategy: "#ef4444", framework: "#06b6d4"
+  };
+
+  const CLUSTER_POSITIONS = {
+    decision:  { x: 0.5,  y: 0.5  },
+    person:    { x: 0.15, y: 0.35 },
+    company:   { x: 0.85, y: 0.3  },
+    signal:    { x: 0.2,  y: 0.75 },
+    insight:   { x: 0.8,  y: 0.7  },
+    pattern:   { x: 0.5,  y: 0.88 },
+    strategy:  { x: 0.15, y: 0.9  },
+    framework: { x: 0.85, y: 0.9  }
+  };
 
   const af = state.graphFilter;
   const nodes = state.graphData.nodes
     .filter(n => af.size === 0 || af.has(n.type))
-    .map(n => ({ ...n }));
+    .map(n => {
+      const cp = CLUSTER_POSITIONS[n.type] || { x: 0.5, y: 0.5 };
+      return { ...n, x: cp.x * W + (Math.random() - 0.5) * 60, y: cp.y * H + (Math.random() - 0.5) * 60 };
+    });
   const nodeIds = new Set(nodes.map(n => n.id));
   const edges = state.graphData.edges
     .filter(e => nodeIds.has(typeof e.source === "object" ? e.source.id : e.source) && nodeIds.has(typeof e.target === "object" ? e.target.id : e.target))
-    .map(e => ({ source: typeof e.source === "object" ? e.source.id : e.source, target: typeof e.target === "object" ? e.target.id : e.target, primaryType: e.primaryType, avgWeight: e.avgWeight, count: e.count }));
+    .map(e => ({ source: typeof e.source === "object" ? e.source.id : e.source, target: typeof e.target === "object" ? e.target.id : e.target, count: e.count, strength: e.strength }));
 
   const g = svg.append("g");
-  svg.call(d3.zoom().scaleExtent([0.2, 5]).on("zoom", (ev) => g.attr("transform", ev.transform)));
+  svg.call(d3.zoom().scaleExtent([0.15, 6]).on("zoom", (ev) => g.attr("transform", ev.transform)));
+
+  const clusterTypes = [...new Set(nodes.map(n => n.type))];
+  clusterTypes.forEach(type => {
+    const cp = CLUSTER_POSITIONS[type] || { x: 0.5, y: 0.5 };
+    g.append("text")
+      .attr("class", "graph-node-label")
+      .attr("x", cp.x * W).attr("y", cp.y * H - 60)
+      .attr("text-anchor", "middle")
+      .style("font-size", "10px").style("letter-spacing", "0.15em").style("text-transform", "uppercase")
+      .style("fill", TYPE_COLORS[type] || "#999").style("opacity", 0.5)
+      .text("// " + (TYPE_LABELS[type] || type));
+  });
 
   const link = g.selectAll(".graph-link").data(edges).join("line")
-    .attr("class", d => "graph-link link-" + d.primaryType)
-    .attr("marker-end", d => "url(#arrow-" + d.primaryType + ")")
-    .attr("stroke-width", 0.5)
-    .attr("opacity", d => 0.08 + (d.strength || 0) * 0.15)
-    .attr("data-s", d => typeof d.source === "object" ? d.source.id : d.source)
-    .attr("data-t", d => typeof d.target === "object" ? d.target.id : d.target);
+    .attr("class", "graph-link")
+    .attr("stroke", "var(--ink-muted)")
+    .attr("stroke-width", 0.4)
+    .attr("opacity", 0.06);
 
   const node = g.selectAll(".graph-node-g").data(nodes, d => d.id).join("g")
-    .attr("class", d => "graph-node" + (d.id === state.graphFocus ? " highlight focused" : ""))
+    .attr("class", "graph-node")
     .attr("data-id", d => d.id)
     .call(d3.drag()
       .on("start", (ev, d) => { if (!ev.active) graphSim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
       .on("drag", (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
       .on("end", (ev, d) => { if (!ev.active) graphSim.alphaTarget(0); d.fx = null; d.fy = null; })
     );
-
-  const TYPE_COLORS = {
-    person: "#1a1a1a", company: "#6b7280", decision: "#6366f1",
-    insight: "#8b5cf6", signal: "#10b981", pattern: "#f59e0b",
-    strategy: "#ef4444", framework: "#06b6d4"
-  };
 
   const degree = new Map();
   edges.forEach(e => {
@@ -2002,12 +2000,13 @@ async function mountGraph() {
   node.each(function(d) {
     const el = d3.select(this);
     const deg = degree.get(d.id) || 1;
-    const r = 6 + Math.pow(deg / maxDeg, 0.4) * 40;
+    const r = 5 + Math.pow(deg / maxDeg, 0.45) * 35;
     d._r = r;
-    const color = TYPE_COLORS[d.type] || "#1a1a1a";
-    el.append("circle").attr("r", r).attr("fill", color).attr("opacity", 0.85);
-    el.append("text").attr("class", "graph-node-label").attr("y", r + 14)
-      .attr("text-anchor", "middle").text(d.label.length > 18 ? d.label.slice(0, 16) + "..." : d.label);
+    el.append("circle").attr("r", r).attr("fill", TYPE_COLORS[d.type] || "#999").attr("opacity", 0.8);
+    if (r > 12) {
+      el.append("text").attr("class", "graph-node-label").attr("y", r + 12)
+        .attr("text-anchor", "middle").text(d.label.length > 22 ? d.label.slice(0, 20) + "..." : d.label);
+    }
   });
 
   const canvas = container;
@@ -2055,12 +2054,21 @@ async function mountGraph() {
     });
   });
 
+  function clusterForce(alpha) {
+    nodes.forEach(d => {
+      const cp = CLUSTER_POSITIONS[d.type] || { x: 0.5, y: 0.5 };
+      const cx = cp.x * W, cy = cp.y * H;
+      d.vx += (cx - d.x) * alpha * 0.15;
+      d.vy += (cy - d.y) * alpha * 0.15;
+    });
+  }
+
   graphSim = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(edges).id(d => d.id).distance(100).strength(d => 0.05 + (d.strength || 0) * 0.15))
-    .force("charge", d3.forceManyBody().strength(-400))
-    .force("center", d3.forceCenter(W / 2, H / 2))
-    .force("collision", d3.forceCollide().radius(d => (d._r || 10) + 8))
-    .alphaDecay(0.025)
+    .force("link", d3.forceLink(edges).id(d => d.id).distance(60).strength(d => 0.02 + (d.strength || 0) * 0.08))
+    .force("charge", d3.forceManyBody().strength(-120))
+    .force("cluster", clusterForce)
+    .force("collision", d3.forceCollide().radius(d => (d._r || 8) + 4))
+    .alphaDecay(0.02)
     .on("tick", () => {
       link
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
