@@ -29,6 +29,7 @@ Last updated: 2026-05-17 (hackathon day 2, demo Sunday evening)
 
 - [ ] Granola or Circleback source worker
 - [x] Notion-Docs source worker (`notion-docs/`) — built, retains directly to Hindsight (bypasses STM). Needs deploy.
+- [x] Glossary Proposer worker (`glossary-proposer/`) — scans STM bodies, extracts AGENT/CONCEPT candidates, writes Proposed rows to Glossary DB. Needs deploy + Status property on Glossary DB.
 - [ ] Companies, Strategies, Patterns LTM DBs populated
 - [ ] Force-directed graph with live data
 

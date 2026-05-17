@@ -4,30 +4,32 @@ import { Worker } from "@notionhq/workers";
 import * as Schema from "@notionhq/workers/schema";
 import { JWT } from "google-auth-library";
 import { google, type admin_directory_v1, type calendar_v3, type gmail_v1 } from "googleapis";
-import { clean, loadGlossary } from "./cleaning";
+import { clean, loadAllEntries } from "./cleaning";
 import type { GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
 export default worker;
 
-// Resolve the Glossary data source ID from the env or skip cleaning.
-// Set GLOSSARY_DATA_SOURCE_ID to the Glossary DB's data source ID.
-function readGlossaryDataSourceId(): string | null {
-	return process.env.GLOSSARY_DATA_SOURCE_ID?.trim() || null;
+function readEnvId(key: string): string | undefined {
+	return process.env[key]?.trim() || undefined;
 }
 
-async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
-	const glossaryDataSourceId = readGlossaryDataSourceId();
-	if (!glossaryDataSourceId) {
-		console.warn("[google] GLOSSARY_DATA_SOURCE_ID not set — skipping glossary normalization");
+async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+	const glossaryId = readEnvId("GLOSSARY_DATA_SOURCE_ID");
+	if (!glossaryId) {
+		console.warn("[google] GLOSSARY_DATA_SOURCE_ID not set — skipping normalization");
 		return [];
 	}
 	try {
-		const entries = await loadGlossary(notion, glossaryDataSourceId);
-		console.log(`[google] loaded ${entries.length} Glossary entries`);
+		const entries = await loadAllEntries(notion, {
+			glossaryId,
+			peopleId: readEnvId("PEOPLE_DATA_SOURCE_ID"),
+			companiesId: readEnvId("COMPANIES_DATA_SOURCE_ID"),
+		});
+		console.log(`[google] loaded ${entries.length} normalization entries (Glossary + People + Companies)`);
 		return entries;
 	} catch (err) {
-		console.warn("[google] loadGlossary failed:", err instanceof Error ? err.message : err);
+		console.warn("[google] loadAllEntries failed:", err instanceof Error ? err.message : err);
 		return [];
 	}
 }
@@ -742,7 +744,7 @@ async function pullForAllUsers(
 	console.log(
 		`[pullForAllUsers:${kind}] preloaded ${existingIds.size} existing item IDs for dedup`,
 	);
-	const glossary = await loadGlossaryOnce(notion);
+	const glossary = await loadEntriesOnce(notion);
 
 	const users = await listWorkspaceUsers(domain);
 	console.log(`[pullForAllUsers:${kind}] discovered ${users.length} active workspace users`);

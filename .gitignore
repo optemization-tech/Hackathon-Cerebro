@@ -16,6 +16,7 @@ next-env.d.ts
 
 # misc
 .DS_Store
+tmp/
 *.tsbuildinfo
 .vercel
 .turbo
