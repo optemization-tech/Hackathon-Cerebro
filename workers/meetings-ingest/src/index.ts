@@ -188,7 +188,8 @@ async function upsertMeeting(notion: NotionClient, calendarPage: NotionPage): Pr
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: cleanTitle } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
-		"Data Type": { select: { name: "Notion Meetings" } },
+		"Data Type": { select: { name: "meeting transcript" } },
+		Source: { select: { name: "Notion" } },
 		Status: { select: { name: "pending" } },
 		Metadata: { rich_text: [{ type: "text", text: { content: JSON.stringify(meta) } }] },
 	};

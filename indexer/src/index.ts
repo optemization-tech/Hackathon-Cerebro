@@ -108,7 +108,6 @@ function buildTagsForRow(row: RowShape): string[] {
 	if (row.dataType) {
 		tags.push(`data-type:${dataTypeTag(row.dataType)}`);
 	}
-	tags.push(`stm:${row.stmId}`);
 	return tags;
 }
 
