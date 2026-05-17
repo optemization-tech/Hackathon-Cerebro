@@ -22,6 +22,7 @@
 import fs from "node:fs";
 import { Client as NotionClient } from "@notionhq/client";
 import {
+	circlebackUUID,
 	extractMeeting,
 	loadGlossaryOnce,
 	processMeeting,
@@ -208,7 +209,7 @@ async function main() {
 			continue;
 		}
 
-		const idStr = `circleback:${meeting.meetingId}`;
+		const idStr = circlebackUUID(meeting.meetingId);
 		const transcriptLen = meeting.transcriptText.length;
 		const summaryLen = meeting.summary.length;
 

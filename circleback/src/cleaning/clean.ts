@@ -1,4 +1,4 @@
-import type { CleanResult, Entity, EntityType, GlossaryEntry } from "./types";
+import type { EntityType, GlossaryEntry } from "./types";
 
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
@@ -31,8 +31,8 @@ function aliasPattern(alias: string): string {
 }
 
 /**
- * Normalize Glossary aliases inside `rawText` to their canonical Term and
- * report every Glossary entry that matched.
+ * Normalize Glossary aliases inside `rawText` to their canonical Term.
+ * Returns the rewritten string. Entity extraction is Hindsight's job.
  *
  * Behavior:
  *  - Case-insensitive match.
@@ -43,18 +43,15 @@ function aliasPattern(alias: string): string {
  *    "RC Willenbrock" wins over its alias "RC". Without this ordering, the
  *    shorter alias would consume the canonical's prefix and leave " Willenbrock"
  *    floating.
- *  - Entity dedup: each canonical+type pair appears at most once in `entities`,
- *    regardless of how many surface forms surfaced in the text.
  */
-export function clean(rawText: string, glossary: GlossaryEntry[]): CleanResult {
+export function clean(rawText: string, glossary: GlossaryEntry[]): string {
   const text = rawText ?? "";
   if (!text || !glossary || glossary.length === 0) {
-    return { cleanedText: text, entities: [] };
+    return text;
   }
 
-  // Flatten Glossary into one entry per (alias, canonical, type). The canonical
-  // term itself is included as a "self-alias" so that an unmodified canonical
-  // mention still records an entity.
+  // Flatten Glossary into one entry per (alias, canonical). The canonical
+  // term itself is included as a "self-alias" so it participates in ordering.
   const replacements: Replacement[] = [];
   for (const entry of glossary) {
     const term = entry.term?.trim();
@@ -68,7 +65,7 @@ export function clean(rawText: string, glossary: GlossaryEntry[]): CleanResult {
     }
   }
   if (replacements.length === 0) {
-    return { cleanedText: text, entities: [] };
+    return text;
   }
 
   // Sort longest-first. Ties: lexicographic by alias for determinism.
@@ -96,22 +93,11 @@ export function clean(rawText: string, glossary: GlossaryEntry[]): CleanResult {
     "gi",
   );
 
-  // Lookup matched surface text → {canonical, type}. Case-insensitive.
-  const lookup = new Map<string, { canonical: string; type: EntityType }>();
+  // Lookup matched surface text → canonical. Case-insensitive.
+  const lookup = new Map<string, string>();
   for (const r of ordered) {
-    lookup.set(r.alias.toLowerCase(), { canonical: r.canonical, type: r.type });
+    lookup.set(r.alias.toLowerCase(), r.canonical);
   }
 
-  const entities = new Map<string, Entity>();
-  const cleanedText = text.replace(combined, (match) => {
-    const hit = lookup.get(match.toLowerCase());
-    if (!hit) return match;
-    const key = `${hit.type}:${hit.canonical}`;
-    if (!entities.has(key)) {
-      entities.set(key, { text: hit.canonical, type: hit.type });
-    }
-    return hit.canonical;
-  });
-
-  return { cleanedText, entities: Array.from(entities.values()) };
+  return text.replace(combined, (match) => lookup.get(match.toLowerCase()) ?? match);
 }

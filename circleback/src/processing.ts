@@ -3,12 +3,35 @@
 // transcript-stitching, Glossary normalization, and STM-write logic is
 // identical and lives here.
 
+import { createHash } from "node:crypto";
 import { Client as NotionClient } from "@notionhq/client";
 import { clean, loadGlossary } from "./cleaning";
-import type { Entity, GlossaryEntry } from "./cleaning";
+import type { GlossaryEntry } from "./cleaning";
 
 // "Short-Term Memory" data source. Shared with every Cerebro source worker.
 export const SHORT_TERM_MEMORY_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
+
+// Shared namespace UUID for all Cerebro source workers. Different from any
+// per-service namespace so IDs are globally unique across worker types.
+const CEREBRO_NAMESPACE_UUID = "ced4b0c0-5ec0-4b5a-9def-1a3b2c7e8f9d";
+
+function uuidv5(name: string, namespace: string): string {
+	const nsHex = namespace.replace(/-/g, "");
+	if (nsHex.length !== 32) throw new Error("Invalid namespace UUID");
+	const nsBytes = Buffer.from(nsHex, "hex");
+	const nameBytes = Buffer.from(name, "utf8");
+	const digest = createHash("sha1").update(Buffer.concat([nsBytes, nameBytes])).digest();
+	const bytes = Buffer.from(digest.subarray(0, 16));
+	bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+	bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+	const hex = bytes.toString("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** Canonical UUIDv5 ID for a Circleback meeting. Stable on re-run. */
+export function circlebackUUID(meetingId: string): string {
+	return uuidv5(`circleback://${meetingId}`, CEREBRO_NAMESPACE_UUID);
+}
 
 // ===== Glossary normalization =====
 
@@ -30,17 +53,6 @@ export async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEn
 		console.warn("[circleback] loadGlossary failed:", err instanceof Error ? err.message : err);
 		return [];
 	}
-}
-
-export function mergeEntities(...lists: Entity[][]): Entity[] {
-	const seen = new Map<string, Entity>();
-	for (const list of lists) {
-		for (const e of list) {
-			const key = `${e.type}:${e.text}`;
-			if (!seen.has(key)) seen.set(key, e);
-		}
-	}
-	return Array.from(seen.values());
 }
 
 // ===== Circleback payload typing =====
@@ -239,19 +251,14 @@ export function buildMeetingPageContent(
 	meeting: CirclebackMeeting,
 	glossary: GlossaryEntry[],
 ): MeetingPageContent {
-	const id = `circleback:${meeting.meetingId}`;
+	const id = circlebackUUID(meeting.meetingId);
 
 	// Glossary normalization: clean title + summary + transcript.
-	const titleClean = clean(meeting.title, glossary);
-	const summaryClean = clean(meeting.summary, glossary);
-	const transcriptClean = clean(meeting.transcriptText, glossary);
-	const entities = mergeEntities(
-		titleClean.entities,
-		summaryClean.entities,
-		transcriptClean.entities,
-	);
+	const cleanedTitle = clean(meeting.title, glossary);
+	const cleanedSummary = clean(meeting.summary, glossary);
+	const cleanedTranscript = clean(meeting.transcriptText, glossary);
 
-	const pageTitle = (titleClean.cleanedText.trim() || "(untitled meeting)").slice(0, 2000);
+	const pageTitle = (cleanedTitle.trim() || "(untitled meeting)").slice(0, 2000);
 
 	// Metadata block — renders at the TOP of the page body so the date,
 	// attendees, and recording link are visible without scrolling past the
@@ -271,11 +278,11 @@ export function buildMeetingPageContent(
 
 	const parts: string[] = [];
 	parts.push(...meta);
-	if (summaryClean.cleanedText.trim()) {
-		parts.push("", "### Summary", "", summaryClean.cleanedText.trim());
+	if (cleanedSummary.trim()) {
+		parts.push("", "### Summary", "", cleanedSummary.trim());
 	}
 	parts.push("", "### Transcript", "");
-	parts.push(transcriptClean.cleanedText.trim() || "_(no transcript captured)_");
+	parts.push(cleanedTranscript.trim() || "_(no transcript captured)_");
 	const markdown = parts.join("\n");
 
 	const properties: Record<string, unknown> = {
@@ -285,9 +292,6 @@ export function buildMeetingPageContent(
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Circleback transcript" } },
 		Status: { select: { name: "pending" } },
-		Entities: {
-			rich_text: [{ type: "text", text: { content: JSON.stringify(entities) } }],
-		},
 	};
 
 	return { id, pageTitle, properties, markdown };
@@ -300,7 +304,14 @@ export async function processMeeting(
 ): Promise<STMWriteResult> {
 	const content = buildMeetingPageContent(meeting, glossary);
 
-	const existingPageId = await findExistingByID(notion, content.id);
+	// Check new uuidv5 ID first. During the migration transition window (between
+	// deploy and running migrate-ids.ts --apply), also check the legacy
+	// `circleback:<id>` format so we don't create duplicates of old rows.
+	let existingPageId = await findExistingByID(notion, content.id);
+	if (!existingPageId) {
+		const legacyId = `circleback:${meeting.meetingId}`;
+		existingPageId = await findExistingByID(notion, legacyId);
+	}
 	if (existingPageId) {
 		return { id: content.id, pageId: existingPageId, created: false };
 	}
