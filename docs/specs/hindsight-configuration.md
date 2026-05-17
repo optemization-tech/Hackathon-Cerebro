@@ -78,9 +78,9 @@ Without entity labels, the Sync Worker has to post-classify every fact with a se
       "tag": true,
       "values": [
         {"value": "glossary",   "description": "Term, acronym, or nickname with definition"},
-        {"value": "people",     "description": "Human dossier or interaction history"},
-        {"value": "company",    "description": "Organization dossier or interaction history"},
-        {"value": "agent",      "description": "Non-human entity (AI agent, service) dossier"},
+        {"value": "people",     "description": "Persistent record about a human — name, role, organization, interactions, current concerns"},
+        {"value": "company",    "description": "Persistent record about an organization — domain, status, people, interactions with the team"},
+        {"value": "agent",      "description": "Persistent record about a non-human actor (AI agent, service, automation) — what it does, who operates it, how the team uses it"},
         {"value": "task",       "description": "Action item or scheduled follow-up with owner and due date"},
         {"value": "project",    "description": "Time-bounded work stream grouping actions"},
         {"value": "decision",   "description": "What was decided, why, scope, who decided"},

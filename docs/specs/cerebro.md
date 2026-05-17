@@ -159,7 +159,15 @@ Why this split:
 
 ## Data model
 
-Thirteen databases total: two ingest-layer (Short-Term Memory + Glossary) + eleven Long-Term Memory DBs grouped as dossiers, actions, and intelligence. Schemas are defined once here in their forward-compatible form; the **Status** column indicates when each DB ships.
+Thirteen databases total: two ingest-layer (Short-Term Memory + Glossary) + eleven Long-Term Memory DBs. The eleven Long-Term Memory DBs split into three groups by **what each row represents**:
+
+- **Dossier DBs** — *who*. One row per **entity**: a person, a company, or an AI agent. Each row is a single, persistent file folder that Cerebro keeps adding to over time. The "RC Willenbrock" dossier gets new entries every time RC shows up in a Granola transcript, a Slack thread, or an email — all merged into one record with citations back to the source. Same shape for companies (the "AIVC" dossier accumulates every mention of AIVC across all our work) and agents (the "Granola" dossier accumulates everything we know about how Granola behaves as a tool — its capabilities, its quirks, what we use it for, what's broken about it).
+- **Action DBs** — *what the team does*. Time-bounded events with owners: projects start and finish, tasks get assigned and completed, decisions get made and sometimes reversed. Actions reference entities from the Dossier layer ("Tem committed to delivering X for AIVC by Friday").
+- **Intelligence DBs** — *what Cerebro learns*. Patterns, signals, frameworks, insights, and strategies that emerge from observing actions over time. Some are human-authored in the moment (Insights, Strategies); others are inferred by Cerebro from observation consolidation (Patterns, Signals).
+
+Why "dossier" and not "profile" or "record"? A dossier is something a third party assembles about a subject by accumulating evidence from many sources — that's exactly what Cerebro does. A profile is something the subject writes about themselves; Cerebro doesn't have that.
+
+Schemas are defined once here in their forward-compatible form; the **Status** column indicates when each DB ships.
 
 ### Ingest-layer DBs
 
