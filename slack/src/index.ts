@@ -145,32 +145,21 @@ async function upsertSlackMessage(
 		}
 	}
 
-	const metaLines: string[] = [];
-	metaLines.push(`- **ID:** \`${id}\``);
-	metaLines.push(
-		`- **From:** ${senderLabel}${msg.userEmail ? ` (${msg.userEmail})` : ""}`,
-	);
-	if (msg.userId) metaLines.push(`- **Slack user ID:** \`${msg.userId}\``);
-	metaLines.push(`- **Channel:** #${msg.channelName} (\`${msg.channelId}\`)`);
-	metaLines.push(
-		`- **Timestamp:** \`${msg.timestamp}\`${isoTime ? ` — ${isoTime}` : ""}`,
-	);
-	if (msg.threadTs) metaLines.push(`- **Thread parent:** \`${msg.threadTs}\``);
-	if (msg.permalink) metaLines.push(`- **Permalink:** ${msg.permalink}`);
-	if (msg.teamId) metaLines.push(`- **Team ID:** \`${msg.teamId}\``);
-	if (msg.workspaceName) metaLines.push(`- **Workspace:** ${msg.workspaceName}`);
+	const markdown = messageBody;
 
-	const markdown = [
-		"## Message",
-		"",
-		messageBody.length > 0 ? messageBody : "_(no text content)_",
-		"",
-		"---",
-		"",
-		"## Metadata",
-		"",
-		...metaLines,
-	].join("\n");
+	const metadata: Record<string, string | null> = {
+		slackUserId: msg.userId,
+		channelId: msg.channelId,
+		channelName: msg.channelName,
+		teamId: msg.teamId,
+		workspaceName: msg.workspaceName,
+		threadTs: msg.threadTs,
+		messageTs: msg.timestamp,
+		permalink: msg.permalink,
+		senderEmail: msg.userEmail,
+		senderName: msg.userName,
+		senderRealName: msg.userRealName,
+	};
 
 	let matchedNotionUserId: string | null = null;
 	if (msg.userEmail) {
@@ -207,6 +196,7 @@ async function upsertSlackMessage(
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Slack message" } },
 		Status: { select: { name: "pending" } },
+		Metadata: { rich_text: [{ type: "text", text: { content: JSON.stringify(metadata) } }] },
 	};
 	if (matchedNotionUserId) {
 		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
