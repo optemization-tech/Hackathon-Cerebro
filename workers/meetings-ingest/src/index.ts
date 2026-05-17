@@ -4,12 +4,42 @@ import { Worker } from "@notionhq/workers";
 import * as Schema from "@notionhq/workers/schema";
 import { fetchPageContent } from "./markdown.js";
 import { type CalendarRow } from "./preamble.js";
+import { clean, loadAllEntries } from "./cleaning/index.js";
+import type { GlossaryEntry } from "./cleaning/types.js";
 
 const worker = new Worker();
 export default worker;
 
 // Short-Term Memory data source (shared with slack/src/index.ts).
 const SHORT_TERM_MEMORY_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
+
+function readEnvId(key: string): string | undefined {
+	return process.env[key]?.trim() || undefined;
+}
+
+let entriesCache: GlossaryEntry[] | null = null;
+
+async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+	if (entriesCache) return entriesCache;
+	const glossaryId = readEnvId("GLOSSARY_DATA_SOURCE_ID");
+	if (!glossaryId) {
+		console.warn("[meetings] GLOSSARY_DATA_SOURCE_ID not set — skipping normalization");
+		return [];
+	}
+	try {
+		const entries = await loadAllEntries(notion, {
+			glossaryId,
+			peopleId: readEnvId("PEOPLE_DATA_SOURCE_ID"),
+			companiesId: readEnvId("COMPANIES_DATA_SOURCE_ID"),
+		});
+		console.log(`[meetings] loaded ${entries.length} normalization entries (Glossary + People + Companies)`);
+		entriesCache = entries;
+		return entries;
+	} catch (err) {
+		console.warn("[meetings] loadAllEntries failed:", err instanceof Error ? err.message : err);
+		return [];
+	}
+}
 
 // Custom namespace UUID for deterministic v5 IDs of calendar-derived meeting records.
 // Distinct from the slack namespace so collisions across pipelines are impossible.
@@ -140,7 +170,11 @@ async function upsertMeeting(notion: NotionClient, calendarPage: NotionPage): Pr
 	if (row.tldr?.trim()) parts.push(row.tldr.trim());
 	if (summary.trim()) parts.push(summary);
 	parts.push(transcript);
-	const markdown = parts.join("\n\n");
+	const rawMarkdown = parts.join("\n\n");
+
+	const entries = await loadEntriesOnce(notion);
+	const markdown = entries.length > 0 ? clean(rawMarkdown, entries) : rawMarkdown;
+	const cleanTitle = entries.length > 0 ? clean(row.title, entries) : row.title;
 
 	const meta: Record<string, string | null> = {
 		calendarPageId: calendarPage.id,
@@ -152,7 +186,7 @@ async function upsertMeeting(notion: NotionClient, calendarPage: NotionPage): Pr
 	};
 
 	const properties: Record<string, unknown> = {
-		Name: { title: [{ type: "text", text: { content: row.title } }] },
+		Name: { title: [{ type: "text", text: { content: cleanTitle } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Notion Meetings" } },
 		Status: { select: { name: "pending" } },
