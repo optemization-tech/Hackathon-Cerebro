@@ -44,10 +44,8 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const env = loadEnv();
-    const dbId = env[CATEGORIES[category]];
-    if (!dbId) {
-      return NextResponse.json({ error: `no database configured for ${category}` }, { status: 404 });
-    }
+    const key = CATEGORIES[category];
+    const dbId = env[key] as string;
     const { results: records, nextCursor } = await listRecentRecords(dbId, limit, cursor);
     return NextResponse.json(
       { category, records, nextCursor },
