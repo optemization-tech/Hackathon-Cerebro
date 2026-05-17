@@ -32,3 +32,6 @@ yarn-error.log*
 .vscode/
 .claude/worktrees/
 .gstack/
+
+# run manifests (generated per invocation)
+slack/scripts/.runs/*.json
