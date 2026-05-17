@@ -1,0 +1,307 @@
+{
+  "meta": {
+    "bank": "Cerebro",
+    "namespace": "default",
+    "budget": "mid",
+    "query_count": 7,
+    "format_count": 2,
+    "timestamp": "2026-05-17T15:29:30.910Z",
+    "dry_run": false
+  },
+  "summary": {
+    "tally": {
+      "format-a": 0,
+      "format-b": 0,
+      "tie": 7
+    },
+    "formats": [
+      {
+        "format": "format-a",
+        "label": "Hindsight-typed sections",
+        "wins": 0,
+        "total_citations": 0,
+        "total_hedges": 0,
+        "avg_latency_ms": 8266,
+        "avg_answer_length": 2850
+      },
+      {
+        "format": "format-b",
+        "label": "Day-in-the-life narrative",
+        "wins": 0,
+        "total_citations": 0,
+        "total_hedges": 0,
+        "avg_latency_ms": 9511,
+        "avg_answer_length": 2556
+      }
+    ],
+    "recommended": "inconclusive"
+  },
+  "queries": [
+    {
+      "query": "What decisions has the Optemization team made in the last week, and who drove each one?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "The Optemization team has made several key decisions between May 11 and May 17, 2026, primarily focused on refining their client engagement rollouts and internal documentation.\n\n### **Key Decisions & Drivers**\n\n| Decision | Driven By | Date |\n| :--- | :--- | :--- |\n| **Pivoted to a Unit-Based Rollout Model** (for a 500-person client) | **Michael Scharf** | May 11 |\n| **Standardized Onboarding Curriculum** (using Workspace Reset model) | **Esteban Balderas & Michael Scharf** | May 11 |\n| **Shifted Tech Stack Survey to Assertive Recommendations** (single recommendation instead of multiple) | **Michael Scharf** | May 11 |\n| **Established Rollout Order** (starting with Operations unit) | **Optemization Team** | May 11 |\n| **Enforced Training Boundaries** (training is a project capacity drain, must pause for new initiatives) | **Esteban Balderas** | May 11 |\n| **Retained Open-Ended Survey Questions** (to capture unexpected insights) | **Optemization Team** | May 12 |\n| **Adopted Waterfall Interview Style** (alongside department onboarding) | **Optemization Team** | May 12 |\n| **Refined Survey Questioning** (asking about \"concerns\" instead of \"feelings\" about Notion) | **Michael Scharf & Hasty (AI Agent)** | May 12 |\n| **Migrated to Notion as Daily Driver** (for specific client engagement) | **Kamau Muata** | May 12 |\n| **Standardized Review Call Structure** (15m blueprint overview + 30m solutions) | **Luiza Cantini** | May 12 |\n\n### **Operational Context**\n*   **Infrastructure Stabilization:** The team is currently in \"firefighter mode,\" prioritizing the **STM-to-Hindsight pipeline** stabilization.\n*   **Protocol:** A mandatory **\"STOP and Wait\"** protocol is in effect for all major architectural decisions to maintain system stability.\n*   **Resource Management:** Due to capacity strain, the team has formalized that training and adoption are final phases of engagements and consume project capacity, requiring clear boundaries when clients request new projects.\n*   **Client Rollouts:** The team has shifted toward a department-by-department rollout, piloting with People Experience and Marketing departments before expanding to complex areas like Engineering.\n*   **Process Improvement:** To reduce notification noise and simplify management, all automated AI-bot alerts have been consolidated under the Slack identity **\"Bond,\"** and the team is formalizing a **Project Manager** role to separate implementation from communication duties.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2467
+          },
+          "latency_ms": 9570,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "In the last week (specifically leading up to May 17, 2026), the Optemization team made several key strategic and operational decisions:\n\n### **Strategic & Operational Decisions**\n*   **Pivot to Unit-Based Rollout:** The team moved away from a standard, organization-wide Design Sprint to a **unit-based rollout approach** for their 500-person client (Temporal). This involves grouping 22 teams into functional units (starting with People, HR, Communications, and Executive teams) to execute more manageable, iterative cycles.\n    *   **Driver:** Michael Scharf (with team input) spearheaded this shift to improve project manageability and focus.\n*   **Waterfall-Style Interviews:** The team decided that interviews will be conducted in a **waterfall style** alongside each department's onboarding, rather than doing them all upfront.\n    *   **Driver:** The Optemization team collectively determined this approach to better integrate the interview process with the rollout structure.\n*   **Assertive Documentation:** The team decided that **red callouts in the Tech Stack Survey** should be more assertive, providing single recommendations instead of offering multiple options.\n    *   **Driver:** Hasty Haghkhah and the team decided this to improve clarity and decisiveness in client-facing documentation.\n*   **Migration Timing:** Seb decided to **delay a code migration by one week** to avoid scheduling conflicts with Meg Sanders, who was providing migration support for the broader team at the time.\n    *   **Driver:** Seb.\n*   **Strategic Alignment:** Esteban Balderas was tasked with applying the **Workspace Reset training curriculum** to Temporal onboarding sessions to ensure they align with the team's new strategic framework.\n    *   **Driver:** The Optemization team (Michael Scharf, in the planning summary).\n\n### **Contextual Operational Constraints**\nThe team has been operating in a high-intensity \"firefighter mode\" with a mandatory **\"STOP and Wait\"** protocol for all major architectural decisions to stabilize internal systems (specifically the STM-to-Hindsight pipeline) and prevent regression. Additionally, they are currently in the process of recruiting a new Notion Workspace Developer to mitigate chronic capacity strain and team fatigue.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2266
+          },
+          "latency_ms": 7128,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "What stress signals or blockers has the team flagged recently?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "As of mid-May 2026, the Optemization team is operating in a high-intensity **\"firefighter mode\"** to stabilize internal infrastructure and address mounting operational friction. All major architectural decisions are currently under a mandatory **\"STOP and Wait\"** protocol.\n\n### **Key Stress Signals & Operational Friction**\n*   **Capacity Strain & Burnout:** The team is under-resourced, and members have reported fatigue from manual onboarding and repetitive client tasks. The recent departure of an external contractor has further increased the cognitive load.\n*   **Platform & Tooling Friction:**\n    *   **Asana Fatigue:** Consistently reported as an operational slowdown.\n    *   **Notion Bottlenecks:** Mandatory 3–7 day lead times for workspace exports are directly delaying client project audits (e.g., Temporal).\n    *   **Sync Issues:** Technical regressions in the **STM-to-Hindsight pipeline** are causing metadata pollution and data extraction errors.\n    *   **Automation/Technical Debt:** Ongoing failures in specific automations (e.g., CTLE, Invoicing, and broader study task syncs) and overdue infrastructure maintenance (e.g., Attio Webhook fix, network security allowlisting) are impacting service continuity.\n*   **Process & Communication Challenges:**\n    *   **Role Ambiguity:** Persistent friction in client engagements due to unclear boundaries between Directly Responsible Individuals (DRIs) and technical implementers.\n    *   **Information Noise:** High volume of fragmented communication across Slack, email, and Notion, and \"approval request noise\" in Slack, have led to information loss.\n\n### **Current Blockers**\n*   **PicnicHealth:** Development of the Cascade Engine is **blocked** due to a missing 'Contract Sign Date' field in Notion.\n*   **Temporal:** The Workspace Audit is **blocked** by the 3–7 day lead time for Notion workspace content exports.\n*   **Leslie Institute:** Discovery and implementation are **at risk** due to legacy knowledge gaps and role ambiguity.\n*   **General Automations:** Ongoing issues with CTLE and Invoicing automations are stalled pending developer updates.\n\n### **Strategic Mitigation Efforts**\nTo address these issues, the team is implementing several structural changes:\n*   **Formalizing Leadership:** Establishing a dedicated **Project Manager** role to separate technical implementation from communication/DRI duties.\n*   **Recruitment:** Active interviewing for a full-time, remote **Notion Workspace Developer** to relieve capacity strain.\n*   **Process Unification:** Consolidating all automated AI-bot alerts under the single Slack identity **\"Bond\"** and enforcing the use of dedicated Notion portals to ensure clean audit trails.\n*   **Operational Discipline:** Shifting to a \"department-by-department\" rollout model for services (e.g., the Workspace Reset) to reduce risk and improve customization.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2879
+          },
+          "latency_ms": 7014,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "As of mid-May 2026, the Optemization team is operating in a high-intensity **\"firefighter mode\"** to stabilize internal infrastructure and address mounting operational friction. The team is currently under a mandatory **\"STOP and Wait\"** protocol for all major architectural decisions.\n\n### **Key Stress Signals & Operational Friction**\n*   **Capacity & Fatigue:** The team reports significant strain from manual onboarding and repetitive client tasks. High cognitive load and burnout concerns are being addressed through active recruitment for a full-time, remote **Notion Workspace Developer**.\n*   **Operational Bottlenecks:**\n    *   **Notion Lead Times:** Mandatory 3–7 day lead times for Notion workspace exports are creating critical blockers for several client project audits.\n    *   **\"Asana Fatigue\":** Repeated team frustration that Asana is slowing down project workflows.\n    *   **Communication Noise:** High volume of approval request noise in Slack and fragmented information across multiple platforms (Slack, email, Notion, SharePoint) leading to information loss.\n*   **Infrastructure Stress:** Technical regressions in the **STM-to-Hindsight pipeline** are causing metadata pollution and data extraction errors, necessitating the \"firefighter\" stabilization focus.\n*   **Process Friction:** Role ambiguity between DRIs and technical implementers in client engagements has led to confusion, with clients often defaulting to Slack, which undermines the use of dedicated Notion portals.\n\n### **Major Project Blockers & At-Risk Tasks**\n*   **Leslie Institute Discovery:** At risk due to legacy knowledge gaps and ongoing role ambiguity.\n*   **PicnicHealth:** Blocked by a missing 'Contract Sign Date' field in Notion.\n*   **Temporal Workspace Audit:** Blocked by the 3–7 day Notion workspace export lead time.\n*   **Service Continuity Risks:** Several overdue operational tasks remain, including an **Attio Webhook fix** (since May 6) and pending network security allowlisting for `*.notion.com`.\n\n### **Strategic Shifts in Progress**\n*   **Organizational Formalization:** Moving toward a formal hierarchy (Departments, Teams, Units) and creating a dedicated **Project Manager** role to separate technical implementation from communication duties.\n*   **Standardization:** Unifying automated AI-bot alerts under a single Slack identity (**\"Bond\"**) and enforcing the use of dedicated Notion portals to ensure clean audit trails.\n*   **Support Boundaries:** Implementing a new protocol for unresponsive clients and establishing prerequisites for project kick-offs to better manage scope and expectations.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2619
+          },
+          "latency_ms": 11581,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "Who are the key people the team has been interacting with, and what are their current concerns?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "As of May 17, 2026, the Optemization team is operating in a high-intensity \"firefighter mode,\" prioritizing internal infrastructure stabilization—specifically the **STM-to-Hindsight pipeline**—to resolve metadata and data extraction errors. Key interactions and stakeholder status are as follows:\n\n### **Key People & Organizations**\n\n*   **AIVC**\n    *   **Contact:** Temirlan Nugmanov (Lead)\n    *   **Focus:** Building AI-native infrastructure, conducting tech stack surveys, and designing the AIVC HQ workspace architecture.\n*   **Bellesa**\n    *   **Contacts:** Kamau Muata & Luiza Cantini (Leads)\n    *   **Focus:** Scaling workspace architecture and email migration.\n    *   **Concerns:** Currently experiencing workspace redundancy issues.\n*   **Temporal**\n    *   **Contact:** Skyler Birk-Stachon (Lead)\n    *   **Focus:** Executing a workspace audit via a pilot \"department-by-department\" rollout.\n    *   **Concerns:** Blocked by a mandatory 3–7 day lead time for Notion workspace content exports. The team is also evaluating the optimal teamspace structure for a client with 500–1,000 members.\n*   **Leslie Institute**\n    *   **Contact:** Hasty Haghkhah (Lead)\n    *   **Status:** **At Risk**\n    *   **Concerns:** Discovery and implementation are stalled due to role ambiguity and legacy knowledge gaps.\n*   **PicnicHealth**\n    *   **Contact:** Carol (Lead)\n    *   **Status:** **Blocked**\n    *   **Concerns:** Development of the Cascade Engine is blocked due to a missing 'Contract Sign Date' field in Notion.\n*   **Mouse**\n    *   **Contact:** Elena Chon (Project Coordinator)\n    *   **Focus:** Executing a workspace blueprint, including database consolidation and the launch of personal dashboards for team members.\n\n---\n\n### **Operational Constraints & Team-Wide Concerns**\n\nThe team is currently under a mandatory **\"STOP and Wait\"** protocol for all major architectural decisions. Other critical concerns include:\n\n*   **Capacity Strain:** The team reports significant fatigue from manual onboarding and repetitive client tasks. The recent departure of an external contractor has exacerbated this, leading to the initiation of recruitment for a full-time, remote **Notion Workspace Developer**.\n*   **Platform Friction:** \n    *   **Notion:** Mandatory 3–7 day lead times for workspace exports are actively delaying audits.\n    *   **Asana:** Reported as a source of \"Asana fatigue,\" causing operational slowdowns.\n*   **Infrastructure Debt:** Several overdue tasks, specifically the **Attio Webhook fix** (pending since May 6) and **Network Security allowlisting** for `*.notion.com`, are threatening service continuity.\n*   **Communication Boundaries:** The team is struggling to unify notifications (transitioning to the Slack identity \"Bond\" for automated bot alerts) and is working to formalize the **Project Manager** role to separate technical implementation from communication/DRI duties.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2918
+          },
+          "latency_ms": 7371,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "As of May 17, 2026, the Optemization team is operating in a high-intensity \"firefighter mode\" to address internal infrastructure issues. Key stakeholders and contacts, along with their current operational contexts and concerns, are summarized below:\n\n### **Key Internal & External Stakeholders**\n\n*   **Optemization Team (e.g., Temirlan Nugmanov, Mike Scharf, Hasty Haghkhah, Luiza Cantini):**\n    *   **Concerns:** The team is primarily focused on **infrastructure stabilization** (specifically the STM-to-Hindsight pipeline) to resolve metadata and data extraction errors. There is significant **capacity strain and burnout** due to manual onboarding and repetitive client tasks. The team is also navigating **role ambiguity** and working to formalize a new Project Manager role to separate technical implementation from communication duties.\n    *   **Operational Protocol:** A mandatory **\"STOP and Wait\"** protocol is in effect for all major architectural decisions to prevent further regressions.\n\n*   **Temporal (Client):**\n    *   **Concerns:** The Temporal workspace audit is currently **blocked** due to non-negotiable 3–7 day lead times for Notion workspace exports. The team is pivoting to a \"unit-based\" rollout model (grouping departments into functional units) to improve management and reduce risk.\n\n*   **PicnicHealth (Client):**\n    *   **Concerns:** The Cascade Engine development is currently **blocked** by a missing 'Contract Sign Date' field in Notion. The project has also experienced automation outages affecting trust, which are currently under investigation by team leadership.\n\n*   **Leslie Institute (Client):**\n    *   **Concerns:** The Discovery and Implementation phase is considered **at risk** due to role ambiguity and legacy knowledge gaps.\n\n*   **OOTC Team (Phil, Peter, and James):**\n    *   **Context:** The team is actively engaged in infrastructure and Notion workspace consulting for this client. While specific, individual personal concerns are not documented, they are part of the broader project portfolio that the team is managing under high operational pressure.\n\n### **Persistent Friction Points & Risks**\n*   **Capacity:** High cognitive load and under-resourcing have led to ongoing fatigue; active recruitment for a full-time Notion Workspace Developer is underway.\n*   **Platform/Tooling:** \"Asana fatigue\" is impacting workflow speed, and Notion's rigid export lead times are delaying critical project audits.\n*   **Overdue Tasks:** Infrastructure maintenance, including the **Attio Webhook fix** (since May 6) and **Network Security allowlisting** for `*.notion.com`, remain overdue and pose risks to service continuity.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2674
+          },
+          "latency_ms": 12394,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "What strategies or approaches is the team actively pursuing across engagements?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "The Optemization team is currently prioritizing internal infrastructure stabilization while managing active client engagements. Their strategies and operational approaches are centered on stabilizing critical systems, mitigating capacity strain, and evolving team structure to better handle project work.\n\n### **Core Operational Strategies**\n*   **Infrastructure Stabilization:** The team is in \"firefighter mode,\" prioritizing the refactoring of the **STM-to-Hindsight pipeline** to resolve metadata pollution and data extraction errors. \n*   **Architectural Guardrails:** A mandatory **\"STOP and Wait\"** protocol is in effect for all major architectural decisions to prevent technical regressions while the team stabilizes internal systems.\n*   **Organizational Formalization:** The team is transitioning to a more formal hierarchy and has introduced a dedicated **Project Manager** role to separate technical implementation from client communication and Directly Responsible Individual (DRI) duties.\n*   **Engagement Sustainability:**\n    *   **\"Genetic Development\" Model:** Developing team members to have baseline capabilities while maintaining specific specializations.\n    *   **Self-Sufficiency Focus:** Designing artifacts (e.g., Property dictionaries, Workspace Inventories) that ensure clients can remain self-sufficient after engagements end.\n    *   **Support Grace Periods:** Proposing a paid two-week \"grace period\" at the end of 14-week engagements to provide ongoing support and training.\n    *   **Prerequisite Enforcement:** Establishing firm prerequisites for client project kick-offs to reduce friction.\n*   **Communication Boundaries:** Unifying all automated AI-bot alerts under the Slack identity **\"Bond\"** to reduce notification noise and enforcing the use of dedicated Notion portals to maintain clean audit trails.\n\n### **Engagement-Specific Approaches**\n*   **Department-by-Department Rollouts:** Adopting a phased rollout model for the \"Workspace Reset\" service (as piloted with Temporal) to ensure better customization and reduce implementation risk.\n*   **\"Lead with a Working Demo\":** Shifting away from \"janky\" demo decks to a approach of leading sales cycles with working demos to shorten the sales cycle.\n*   **Task/Project Management:** Moving toward the **PARA framework** for organization and retaining Asana for task management, with a one-way sync to Notion for team visibility.\n\n### **Current Operational Constraints & Risks**\n*   **Capacity Strain:** Significant cognitive load from manual onboarding and repetitive client tasks. The team is currently recruiting a full-time, remote **Notion Workspace Developer**.\n*   **Platform Bottlenecks:**\n    *   **Notion:** A non-negotiable 3–7 day lead time for workspace exports is hindering project audits.\n    *   **Asana:** Identified as a source of \"Asana Fatigue,\" slowing down project workflows.\n    *   **Automation:** Sync latency issues between tools (e.g., Attio/Notion) are contributing to duplicate entries and operational friction.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 3031
+          },
+          "latency_ms": 5713,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "As of May 17, 2026, the Optemization team is operating in a high-intensity **\\\"firefighter mode\\\"** to stabilize internal infrastructure, prioritize existing commitments, and mitigate operational strain. The team is currently under a mandatory **\\\"STOP and Wait\\\"** protocol for all major architectural decisions while they refactor the STM-to-Hindsight pipeline to resolve metadata and data extraction errors.\n\nAcross their 15+ active engagements, the team is pursuing several strategic shifts to improve efficiency and service delivery:\n\n### **Strategic Service Delivery Approaches**\n*   **Unit-Based Rollout Model:** The team is moving away from organization-wide \"Design Sprints\" in favor of a more manageable, iterative, **unit-based rollout model**. This approach groups client departments into functional units (e.g., People, HR, Communications, Executive), cycling through them sequentially to ensure better customization and reduce risk.\n*   **\"Waterfall\" Interview Integration:** Client interviews are now being conducted in a \"waterfall\" style synchronized with each department’s onboarding, rather than as an upfront, separate activity.\n*   **Decoupled Project Management:** The team is formalizing a dedicated **Project Manager** role to decouple technical implementation from communication and DRI (Directly Responsible Individual) duties.\n*   **Consolidated Communication & Tooling:** \n    *   **Unified AI Alerts:** All automated AI-bot alerts are being unified under the Slack identity **\\\"Bond\\\"** to reduce notification noise.\n    *   **Content Standardization:** To improve clarity in client-facing documentation (e.g., Tech Stack Surveys), the team has shifted to being more assertive by providing **single, clear recommendations** rather than multiple options.\n    *   **PARA Framework:** The team is adopting the PARA framework for organization and project management.\n\n### **Operational Mitigations**\n*   **Capacity Management:** To address chronic team fatigue and high cognitive load from manual tasks, the team is actively recruiting a full-time, remote **Notion Workspace Developer** (interviews began the week of May 18, 2026).\n*   **Boundary Enforcement:** There is a renewed effort to maintain a \\\"one project at a time\\\" policy and formally decline out-of-scope client customization requests.\n*   **Support Protocols:** The team is implementing a more rigorous protocol for unresponsive clients, involving daily nudges, proposing \\\"best-guess\\\" paths, and formalizing an escalation path (Sev 1–4).\n\n### **Current Status of Major Engagements**\n*   **AIVC:** Actively building AI-native infrastructure and workspace architecture.\n*   **Bellesa:** Scaling workspace architecture and email migration.\n*   **Temporal:** Piloting the new department-by-department rollout model.\n*   **At Risk/Blocked:**\n    *   **Leslie Institute:** At risk due to role ambiguity and knowledge gaps.\n    *   **PicnicHealth:** Blocked by missing data fields in Notion.\n    *   **Temporal Workspace Audit:** Blocked by mandatory 3–7 day lead times for Notion workspace exports.\n*   **Overdue Maintenance:** Several infrastructure items remain overdue, including the **Attio Webhook fix** (since May 6) and **Network Security allowlisting** for `*.notion.com`, both of which are high-priority risks to service continuity.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 3327
+          },
+          "latency_ms": 7684,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "What recurring patterns has the team exhibited — things that keep coming up across channels?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "The Optemization team is currently exhibiting a distinct set of recurring patterns characterized by high operational pressure and a shift toward formalization. These patterns persist across internal and client-facing communication channels:\n\n### 1. \"Firefighter Mode\" & Infrastructure Stabilization\nThe team is in a period of intense focus on internal infrastructure, specifically refactoring the **STM-to-Hindsight pipeline** to fix metadata and extraction issues. This has led to:\n*   **\"STOP and Wait\" Protocol:** A mandatory halt on all major architectural decisions to prevent further technical debt and regressions.\n*   **Overdue Maintenance:** Persistent, unresolved infrastructure tasks (e.g., the Attio Webhook fix since early May, network security allowlisting) are creating a backlog that threatens service continuity.\n\n### 2. Operational & Platform Friction\nRecurring challenges with tool stacks and platform constraints are slowing the team down:\n*   **\"Asana Fatigue\":** Mounting frustration with Asana as a bottleneck in project workflows, despite the team's commitment to using it for task management with a one-way sync to Notion.\n*   **Platform Bottlenecks:** Mandatory, non-negotiable lead times (e.g., 3–7 day wait for Notion workspace exports) frequently block critical audit and project phases.\n*   **Knowledge Maintenance:** Documentation is falling behind, leading to content \"rot\" and duplicate databases across client projects.\n\n### 3. Structural Evolution & Organizational Formalization\nTo mitigate capacity strain and role ambiguity, the team is actively formalizing its internal structure:\n*   **Role Decoupling:** Moving to separate the **Project Manager** role from technical implementation to clearly define DRI (Directly Responsible Individual) duties versus communication responsibilities.\n*   **\"Genetic Development\" Model:** Developing team members to hold baseline capabilities while maintaining specific specializations to better manage individual capacity.\n*   **Standardization Rituals:** The team maintains standing daily check-in rituals to share status updates and align on cross-departmental dependencies.\n\n### 4. Communication & Engagement Challenges\n*   **Communication Boundaries:** The team struggles to decline out-of-scope customization requests, leading to \"scope creep\" and lost time.\n*   **Fragmentation:** Information often splits across Slack, email, and Notion, which complicates audits and leads to information loss.\n*   **Reactive Communication:** A pattern of \"contextless\" thread replies in Slack (e.g., brief acknowledgments without actionable info) occasionally makes automated channel summaries difficult to synthesize, necessitating a push toward more structured, actionable communication in client portals.\n\n### 5. Proactive Mitigation Efforts\nThe team consistently reacts to its high cognitive load through:\n*   **Recruitment:** Active interviews for a full-time, remote **Notion Workspace Developer** to relieve repetitive task strain.\n*   **Standardization:** Implementing unified AI-bot identities (e.g., \"Bond\") to reduce notification noise and shifting toward \"leading with a working demo\" to shorten sales cycles.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 3185
+          },
+          "latency_ms": 12953,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "The Optemization team is currently exhibiting several recurring patterns driven by a state of \"firefighter mode\" and significant operational strain. These patterns appear consistently across Slack channels, project management, and team interactions:\n\n### 1. Operational \"Firefighter Mode\"\n*   **Infrastructure Stabilization:** The team is prioritizing internal infrastructure (specifically the STM-to-Hindsight pipeline) to resolve metadata and data extraction errors, temporarily de-emphasizing new feature development.\n*   **\"STOP and Wait\" Protocol:** To mitigate technical risks and regressions, a mandatory protocol is in place for all major architectural decisions.\n*   **Capacity & Burnout Strain:** Chronic cognitive load from manual onboarding and repetitive client tasks has led to team fatigue. This is being addressed by actively recruiting a full-time, remote **Notion Workspace Developer**.\n\n### 2. Communication & Coordination Friction\n*   **Information Fragmentation:** Information is frequently scattered across Slack, email, and Notion. Recurring attempts to unify communication—such as consolidating AI-bot alerts under the Slack identity **\"Bond\"**—are ongoing efforts to reduce \"noise.\"\n*   **Role Ambiguity:** There is persistent friction in client engagements regarding the roles of **Directly Responsible Individuals (DRIs)** versus technical implementers. This often leads to client confusion and requests being funneled through the wrong channels (e.g., Slack instead of Notion).\n*   **Meeting Logistics:** A recurring pattern involves scheduling gaps and pending status updates for weekly check-ins and workshop calls, often requiring manual follow-ups by team leads like Kamau Muata.\n\n### 3. Structural & Strategic Evolution\n*   **Rollout Methodology Shift:** The team is moving away from generic \"Design Sprints\" in favor of a **unit-based rollout model** (grouping teams into functional units), which allows for more iterative and manageable project cycles.\n*   **Formalizing Hierarchy:** The team is evolving its structure to better handle capacity, including the introduction of a dedicated **Project Manager** role to decouple technical work from communication duties.\n*   **Standardization Efforts:** There is a strong, recurring emphasis on creating \"working demos\" rather than static decks to shorten sales cycles, alongside a push to adopt the PARA framework for organization.\n\n### 4. Technical Bottlenecks\n*   **Platform Dependencies:** External platform constraints, such as the non-negotiable 3–7 day lead time for Notion workspace exports, are repeatedly identified as critical blockers for project audits and client deliverables.\n*   **\"Asana Fatigue\":** The team consistently reports that Asana contributes to operational slowdowns, yet it remains in use for task tracking with a one-way sync to Notion for visibility.\n*   **Automation Latency:** Syncing issues (e.g., delays in data pushing to Notion) continue to cause confusion, duplicate database entries, and service disruptions that necessitate constant maintenance.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 3065
+          },
+          "latency_ms": 8248,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "What insights or realizations have team members articulated recently?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "Recently, the Optemization team has articulated several critical insights and realizations as they navigate a high-intensity operational period:\n\n### **Operational Realizations & Strategic Shifts**\n*   **Need for Structural Formalization:** The team has recognized that the current overlap between technical implementation and project communication (DRI duties) is causing friction. Consequently, they are formalizing a dedicated **Project Manager** role to decouple these responsibilities.\n*   **Mitigating Capacity Strain:** There is a clear realization that the current reliance on manual onboarding and repetitive client tasks is unsustainable and a primary driver of team fatigue. To address this, they are actively recruiting for a remote **Notion Workspace Developer** and have begun to enforce stricter boundaries on out-of-scope customization requests to protect focus.\n*   **Consolidation of Notifications:** The team has identified \"notification noise\" as a major contributor to information loss and stress. They are unifying automated AI-bot alerts under a single Slack identity, **\"Bond,\"** to streamline communications.\n*   **Infrastructure Reliability:** Following technical regressions and metadata pollution, the team has acknowledged the necessity of stabilizing their internal **STM-to-Hindsight pipeline**. They have adopted a mandatory **\"STOP and Wait\"** protocol for major architectural decisions to prevent further regressions.\n\n### **Service Delivery & Process Insights**\n*   **Support & Engagement Boundaries:** The team is moving toward a department-by-department rollout model for their \"Workspace Reset\" service. This approach is intended to allow for better customization and reduced project risk compared to wider, less-focused deployments.\n*   **Improving Sales & Onboarding:** To shorten sales cycles and reduce friction, they are shifting from relying on \"janky\" demo decks to a \"lead with a working demo\" philosophy. Additionally, they are formalizing client prerequisites and proposing a two-week paid \"grace period\" at the conclusion of engagements to manage ongoing support more effectively.\n*   **Platform & Tooling Friction:** Team members have repeatedly identified specific platform constraints—namely, the non-negotiable 3–7 day lead times for Notion workspace exports and general \"Asana fatigue\"—as significant bottlenecks slowing down project audits and daily workflows.\n\n### **Team Dynamics**\n*   **Role Ambiguity:** Specific team members have reported anxiety stemming from role ambiguity, highlighting the need for clearer task ownership and organizational hierarchy.\n*   **Knowledge Maintenance:** The team recognizes that their internal documentation is struggling to keep pace with project demands, leading to \"content rot\" and the creation of duplicate databases, which they are now actively working to consolidate (e.g., the Schools DB cleanup).",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2898
+          },
+          "latency_ms": 6744,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "The Optemization team is currently working in a high-intensity \"firefighter mode\" to stabilize internal infrastructure, primarily focused on the **STM-to-Hindsight pipeline**. Consequently, recent articulated insights and realizations by team members are largely centered on operational adjustments, capacity management, and communication refinement.\n\n### **Core Insights & Realizations**\n\n*   **Operational Sensitivity:** A key realization was the need to be intentional with communication tone to avoid team anxiety. For example, the team consciously decided to rephrase survey questions about Notion usage to focus on \"actionable concerns\" rather than \"sentiment,\" specifically to avoid causing unnecessary alarm.\n*   **Infrastructure Reliability:** The team has acknowledged the negative impact of automation outages on client trust. Recent failures (e.g., 'Abstraction Launch' and 'Initial Data Delivery' tasks) have led to a realization that system improvements—such as better log messaging and surfaced feature states (e.g., 'Import Mode')—are essential to maintaining service quality.\n*   **Capacity & Role Ambiguity:** Team members, including Hasty Haghkhah, have expressed candid anxiety regarding the current project load, capacity, and role clarity. This realization has driven organizational evolution, including the formalization of the **Project Manager** role to decouple technical implementation from communication/DRI duties.\n*   **Communication Boundaries:** The team is refining how they interact with clients and among themselves to reduce \"noise.\" This includes consolidating all AI-bot alerts under the Slack identity **\"Bond\"** and enforcing a \"waterfall\" approach to client interviews to better align with the department-by-department rollout service model.\n*   **Technical Assertiveness:** In client-facing materials (specifically the Tech Stack Survey), the team realized that being more assertive—providing single, clear recommendations rather than multiple options—improves the clarity and decisiveness of their workspace consulting.\n\n### **Strategic Adjustments**\nThese realizations have informed several immediate changes:\n*   **\"STOP and Wait\" Protocol:** A mandatory pause on all major architectural decisions to prevent further technical regressions.\n*   **Unit-Based Rollouts:** Moving away from standard Design Sprints in favor of a department-by-department unit rollout model to make large-scale projects (like those for 500-person organizations) more manageable.\n*   **Enhanced Onboarding:** Proposing a paid two-week \"grace period\" at the end of engagements to handle support and training, and setting firm prerequisites for client project kick-offs.\n\nThese insights reflect a shift toward a more conservative, stability-focused operating model designed to mitigate team burnout while stabilizing the infrastructure required for sustainable client delivery.",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2896
+          },
+          "latency_ms": 10856,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    },
+    {
+      "query": "What open tasks or follow-ups are pending, and who owns each?",
+      "formats": [
+        {
+          "format": "format-a",
+          "label": "Hindsight-typed sections",
+          "tag": "format:a",
+          "answer": "As of May 17, 2026, the Optemization team is operating in a high-intensity **\"firefighter mode,\"** prioritizing infrastructure stabilization and maintaining a mandatory **\"STOP and Wait\"** protocol for major architectural decisions.\n\nBelow is the status of pending tasks and operational follow-ups.\n\n### **Outstanding & Blocked Tasks**\n| Task | Owner | Status | Notes |\n| :--- | :--- | :--- | :--- |\n| **Attio Webhook Fix** | Team | Overdue | Outstanding since May 6, 2026. |\n| **Network Security Allowlisting (`*.notion.com`)** | Team | Overdue | Critical for service continuity. |\n| **Outlook-Notion Integration Research** | Kamau Muata | Overdue | Outstanding since late April. |\n| **Review Cerebro Demo** | RC Willenbrock | Blocked | Awaiting completion of demo build. |\n| **Temporal Workspace Audit** | Skyler Birk-Stachon | Blocked | Awaiting 3–7 day Notion workspace export lead time. |\n| **PicnicHealth Cascade Engine** | Carol | Blocked | Missing 'Contract Sign Date' field in Notion. |\n| **Engagement Wrap-Up Checklist** | Unassigned | Blocked | Urgent; needs an owner (Week 8). |\n| **n8n VPS Sync Implementation** | Bryan | Blocked | Pending security compliance clearance. |\n| **Notion Permissions (#5295992)** | Team | Blocked | Unresolved platform bug. |\n\n### **Operational Follow-ups**\n*   **AIVC Engagement:** DBN identifier confirmation, Blueprint review, and workshop call scheduling are pending (Action: Kamau Muata and Amelia).\n*   **Temporal Teamspace Architecture:** Tem Nugmanov has requested input from **Vini Fig** regarding the appropriate teamspace structure for Temporal's 500+ (potentially 1,000) member count.\n*   **Workspace Health Report (Temporal):**\n    *   **Formula Reconciliation:** Hasty Haghkhah identified a discrepancy between the Metric 2 formula and the executive summary; reconciliation is needed (Action: Hasty and Vini Fig).\n    *   **Draft Input:** Input on the draft is required from Luiza Cantini, Tem Nugmanov, and Vini Fig to finalize structure/format.\n*   **LaunchHQ Definition:** Clarification of the framework's scope and definition is required from **Vini Fig**.\n*   **Mouse Project Stakeholder:** Kamau Muata is managing information gathering with the stakeholder \"Adam\" and is expected to report back to Vini Fig.\n*   **Recruitment:** Interviews for a full-time **Notion Workspace Developer** begin the week of May 18, 2026, to address chronic capacity strain.\n\n***\n\n*Note: All major architectural changes remain halted unless passed through formal review to stabilize internal systems (the STM-to-Hindsight pipeline).*",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 2575
+          },
+          "latency_ms": 8495,
+          "error": null,
+          "dry_run": false
+        },
+        {
+          "format": "format-b",
+          "label": "Day-in-the-life narrative",
+          "tag": "format:b",
+          "answer": "```json\n{\n  \"memory_ids\": [\n    \"active-tasks\",\n    \"open-decisions\",\n    \"team-state\",\n    \"rising-signals\",\n    \"86520d90-8770-4f0b-a800-db0447ccfa0e\",\n    \"741bf34d-c30b-4b86-8cc6-dee22e3ea930\",\n    \"c4b2e9b7-0b44-46fa-afc5-caa9a953ecd2\",\n    \"81687506-00f4-44e8-ad99-f1c8296552b2\",\n    \"cd513e74-860d-4774-b390-4270683dcfb7\",\n    \"be6375fa-ff99-43b6-b2bb-7f1ebce90eac\",\n    \"8d9c9715-fb47-481d-9076-f8ea009de586\",\n    \"7dadef73-29c9-4798-ab97-783d9e7ca809\",\n    \"4a2acf66-05de-401d-b73b-59885d6ab828\",\n    \"049af4b9-3301-4939-857d-ebdd4586155f\",\n    \"2bf5216d-c2f6-4644-a14c-65187287d3ba\",\n    \"fc310e72-7d21-4c32-aef9-e86e0cffc347\"\n  ],\n  \"mental_model_ids\": [\n    \"active-tasks\",\n    \"open-decisions\",\n    \"team-state\",\n    \"rising-signals\"\n  ],\n  \"observation_ids\": [\n    \"86520d90-8770-4f0b-a800-db0447ccfa0e\",\n    \"741bf34d-c30b-4b86-8cc6-dee22e3ea930\",\n    \"c4b2e9b7-0b44-46fa-afc5-caa9a953ecd2\",\n    \"81687506-00f4-44e8-ad99-f1c8296552b2\",\n    \"cd513e74-860d-4774-b390-4270683dcfb7\",\n    \"be6375fa-ff99-43b6-b2bb-7f1ebce90eac\"\n  ]\n}\n```",
+          "citations": [],
+          "score": {
+            "citation_count": 0,
+            "hedge_count": 0,
+            "attribution_density": 0,
+            "answer_length": 1047
+          },
+          "latency_ms": 8685,
+          "error": null,
+          "dry_run": false
+        }
+      ],
+      "winner": "tie"
+    }
+  ]
+}
