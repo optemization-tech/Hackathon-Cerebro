@@ -2126,7 +2126,9 @@ async function mountGraph() {
       el.addEventListener("mouseenter", () => {
         const parentId = state.graphFocus;
         if (!parentId) return;
-        showConnections(parentId);
+        canvas.classList.add("has-hover");
+        node.style("opacity", n => n.id === parentId ? 1 : 0.08);
+        link.style("opacity", 0.015).style("stroke-width", 0.3);
         el.classList.add("highlighted");
       });
       el.addEventListener("mouseleave", () => {
