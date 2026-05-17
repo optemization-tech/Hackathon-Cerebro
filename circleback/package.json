@@ -1,0 +1,24 @@
+{
+	"name": "@cerebro/circleback",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "tsc",
+		"check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
+		"backfill": "tsx scripts/backfill.ts",
+		"backfill:dry": "tsx scripts/backfill.ts --dry-run"
+	},
+	"engines": {
+		"node": ">=22.0.0",
+		"npm": ">=10.9.2"
+	},
+	"devDependencies": {
+		"@types/node": "^22.9.0",
+		"tsx": "^4.20.6",
+		"typescript": "^5.8.0"
+	},
+	"dependencies": {
+		"@notionhq/client": "^5.0.0",
+		"@notionhq/workers": ">=0.0.0"
+	}
+}
