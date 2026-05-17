@@ -10,7 +10,7 @@ const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 
 export async function GET(): Promise<Response> {
   try {
-    const cards = await fetchDeck(10);
+    const cards = await fetchDeck(25);
     return NextResponse.json(
       { cards },
       { headers: { "Cache-Control": CACHE_CONTROL } },

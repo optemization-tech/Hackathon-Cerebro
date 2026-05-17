@@ -243,6 +243,8 @@
     caret-color: var(--accent);
   }
   .prompt-input::placeholder { color: var(--ink-muted); }
+  .followup-wrap { margin: 16px 0 8px; max-width: 720px; }
+  .followup-wrap .prompt-input { font-size: 20px; padding: 6px 0; }
 
   .affordances {
     display: flex;
@@ -319,10 +321,19 @@
   .recent-item:hover::before { opacity: 1; }
   .recent-item .bullet {
     font-family: var(--mono);
-    color: var(--ink-muted);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    min-width: 80px;
     transition: color 150ms;
   }
-  .recent-item:hover .bullet { color: var(--accent); }
+  .recent-item:hover .bullet { color: var(--accent-ink); }
+  .recent-empty {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-muted);
+    padding: 12px 0;
+  }
   .recent-item .q { flex: 1; }
   .recent-item .ts {
     font-family: var(--mono);
@@ -332,11 +343,8 @@
 
   /* ─── answered view ─── */
   .answered {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 380px;
-    gap: 48px;
     padding: 48px 32px 96px;
-    max-width: 1280px;
+    max-width: 760px;
     margin: 0 auto;
     animation: fadein 200ms ease;
   }
@@ -351,14 +359,34 @@
   .breadcrumb .crumb-home:hover { color: var(--accent); }
   .breadcrumb .question { color: var(--ink); }
   .breadcrumb .sep { margin: 0 8px; color: var(--accent); }
-  .answer-prose {
+  .answer-prose,
+  .chat-answer {
     font-family: var(--serif);
     font-size: 19px;
     line-height: 1.55;
     color: var(--ink);
     max-width: 640px;
   }
-  .answer-prose p { margin-bottom: 1em; }
+  .answer-prose p,
+  .chat-answer p { margin-bottom: 1em; }
+  .chat-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .chat-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .chat-question {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+    padding-top: 8px;
+    border-top: 1px dashed var(--rule);
+  }
   .answer-prose .claim-ref {
     color: var(--accent);
     font-weight: 500;
@@ -1334,7 +1362,7 @@ function render() {
   const main = document.getElementById("main");
   const backBtn = document.getElementById("back-btn");
   if (backBtn) backBtn.hidden = state.mode === "home";
-  if (state.mode === "home") main.innerHTML = renderHome();
+  if (state.mode === "home") { main.innerHTML = renderHome(); mountHome(); }
   else if (state.mode === "answered") { main.innerHTML = renderAnswered(); mountAnswered(); }
   else if (state.mode === "graph") { main.innerHTML = renderGraph(); mountGraph(); }
   else if (state.mode === "speak") { main.innerHTML = renderSpeak(); mountSpeak(); }
@@ -1365,14 +1393,9 @@ function renderHome() {
           <button class="affordance" onclick="setState({mode:'graph', graphFocus:'rc'})">◇ graph</button>
         </div>
         <div class="eyebrow">// RECENT</div>
-        <div class="recent-list">
-          ${SEED_RECENT.map(r => `
-            <div class="recent-item" onclick="askQuestion('${r.q.replace(/'/g, "\\'")}')">
-              <span class="bullet">·</span>
-              <span class="q">${r.q}</span>
-              <span class="ts">${r.ts}</span>
-            </div>
-          `).join("")}
+        <div class="recent-list" id="recent-list">
+          <div class="recent-empty" id="recent-empty">loading…</div>
+          <div id="feed-sentinel"></div>
         </div>
       </div>
     </div>
@@ -1390,8 +1413,97 @@ function submitPrompt() {
   askQuestion(v || "what did rc commit to last week?");
 }
 
+/* ─── home feed (live cards from /api/deck, 5-at-a-time infinite scroll) ─── */
+const FEED_PAGE_SIZE = 5;
+let feedCards = [];
+let feedVisible = 0;
+let feedLoading = false;
+let feedFetched = false;
+let feedObserver = null;
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function escapeText(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderFeedItem(card) {
+  const q = escapeAttr(card.title);
+  return `
+    <div class="recent-item" onclick="askQuestion('${q}')">
+      <span class="bullet">${escapeText(card.type)}</span>
+      <span class="q">${escapeText(card.title)}</span>
+      <span class="ts">${escapeText(card.meta?.when || "")}</span>
+    </div>
+  `;
+}
+
+function appendFeedPage() {
+  if (feedLoading) return;
+  const list = document.getElementById("recent-list");
+  const sentinel = document.getElementById("feed-sentinel");
+  if (!list || !sentinel) return;
+  feedLoading = true;
+  const next = feedCards.slice(feedVisible, feedVisible + FEED_PAGE_SIZE);
+  if (next.length === 0) {
+    if (feedObserver) feedObserver.unobserve(sentinel);
+    if (feedVisible === 0) {
+      const empty = document.getElementById("recent-empty");
+      if (empty) empty.textContent = "no records yet — connect your Notion DBs in .env.local";
+    }
+    feedLoading = false;
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.innerHTML = next.map(renderFeedItem).join("");
+  while (wrap.firstChild) list.insertBefore(wrap.firstChild, sentinel);
+  feedVisible += next.length;
+  feedLoading = false;
+}
+
+async function mountHome() {
+  const empty = document.getElementById("recent-empty");
+  if (!feedFetched) {
+    try {
+      const r = await fetch("/api/deck");
+      if (r.ok) {
+        const data = await r.json();
+        feedCards = Array.isArray(data.cards) ? data.cards : [];
+      }
+    } catch (e) {
+      console.error("[feed] load failed:", e);
+    }
+    feedFetched = true;
+  }
+  feedVisible = 0;
+  // Clear any existing rendered items (defensive in case of re-mount).
+  const list = document.getElementById("recent-list");
+  if (list) {
+    list.querySelectorAll(".recent-item").forEach((el) => el.remove());
+  }
+  if (empty) {
+    empty.textContent = feedCards.length === 0 ? "no records yet — connect your Notion DBs in .env.local" : "";
+    empty.style.display = feedCards.length === 0 ? "" : "none";
+  }
+  appendFeedPage();
+  const sentinel = document.getElementById("feed-sentinel");
+  if (sentinel) {
+    if (feedObserver) feedObserver.disconnect();
+    feedObserver = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) appendFeedPage();
+    }, { rootMargin: "200px" });
+    feedObserver.observe(sentinel);
+  }
+}
+
 function askQuestion(q) {
-  setState({ mode: "answered", question: q, activeCitation: null });
+  setState({
+    mode: "answered",
+    question: q,
+    activeCitation: null,
+    turns: [{ question: q, answer: "", done: false }],
+  });
 }
 
 document.addEventListener("keydown", e => {
@@ -1400,63 +1512,83 @@ document.addEventListener("keydown", e => {
   }
 });
 
-/* ─── answered ─── */
+/* ─── answered (chat thread) ─── */
+function answerToHtml(text) {
+  return "<p>" + text.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>") + "</p>";
+}
+
 function renderAnswered() {
+  if (!state.turns || state.turns.length === 0) {
+    state.turns = [{ question: state.question, answer: "", done: false }];
+  }
+  const turns = state.turns;
+  const lastIdx = turns.length - 1;
+  const topic = turns[0].question;
+
+  const turnsHtml = turns.map((t, i) => {
+    const isLast = i === lastIdx;
+    const showCursor = isLast && !t.done;
+    const proseHtml = t.answer
+      ? answerToHtml(t.answer)
+      : "";
+    return `
+      <div class="chat-turn" data-idx="${i}">
+        ${i > 0 ? '<div class="chat-question">› ' + t.question + '</div>' : ''}
+        <div class="chat-answer" id="chat-answer-${i}">${proseHtml}${showCursor ? '<span class="cursor"></span>' : ''}</div>
+      </div>
+    `;
+  }).join("");
+
   return `
     <div class="answered">
-      <div>
-        <div class="breadcrumb">
-          <span class="crumb-home" onclick="goHome()"><span class="mark">◆</span>cerebro</span>
-          <span class="sep">›</span>
-          <span class="question">${state.question}</span>
-        </div>
-        <div class="answer-prose" id="answer-prose"></div>
-        <div class="answer-footer" id="answer-footer" style="opacity:0;">
-          <div class="ascii-rule">─────────────────────────</div>
-          <div class="answer-actions">
-            <a onclick="setState({mode:'graph', graphFocus:'rc'})"><span class="glyph">◇</span> see in graph</a>
-            <a onclick="goHome()"><span class="glyph">↻</span> ask follow-up</a>
-          </div>
-        </div>
+      <div class="breadcrumb">
+        <span class="crumb-home" onclick="goHome()"><span class="mark">◆</span>cerebro</span>
+        <span class="sep">›</span>
+        <span class="question">${topic}</span>
       </div>
-      <aside class="citation-rail" id="citation-rail" style="opacity:0;">
-        <div class="eyebrow">// SOURCES <span class="count">[${SEED_CITATIONS.length}]</span></div>
-        <div class="citations">
-          ${SEED_CITATIONS.map((c, i) => `
-            <div class="citation-card" data-src="${c.src}" data-idx="${i}">
-              <div class="frame-top">╭${"─".repeat(40)}╮</div>
-              <div class="frame-mid">
-                <div class="src-head">
-                  <span class="src-num">${["①","②","③","④"][i]}</span>
-                  <span class="src-name">${c.name}</span>
-                  <span class="src-ts">${c.ts}</span>
-                </div>
-                <div class="snippet">${c.snippet}</div>
-              </div>
-              <div class="frame-bot">╰${"─".repeat(40)}╯</div>
-            </div>
-          `).join("")}
-        </div>
-      </aside>
+      <div class="chat-thread">${turnsHtml}</div>
+      <div class="prompt-input-wrap followup-wrap">
+        <input id="followup-input" class="prompt-input" placeholder="ask a follow-up…" autocomplete="off" />
+      </div>
     </div>
   `;
 }
 
 function mountAnswered() {
-  const prose = document.getElementById("answer-prose");
-  const footer = document.getElementById("answer-footer");
-  const rail = document.getElementById("citation-rail");
+  const followup = document.getElementById("followup-input");
 
-  prose.innerHTML = '<span class="cursor"></span>';
-  let lastText = "";
+  // Append a new turn on Enter and re-render.
+  if (followup) {
+    followup.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const q = followup.value.trim();
+      if (!q) return;
+      // Commit any in-progress turn as done so the cursor doesn't linger above.
+      state.turns.forEach(t => { t.done = true; });
+      state.turns = [...state.turns, { question: q, answer: "", done: false }];
+      render();
+    });
+  }
 
-  const renderText = (text, withCursor) => {
-    const html = "<p>" + text.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>") + "</p>";
-    prose.innerHTML = html + (withCursor ? '<span class="cursor"></span>' : "");
+  const lastIdx = state.turns.length - 1;
+  const lastTurn = state.turns[lastIdx];
+  const answerEl = document.getElementById(`chat-answer-${lastIdx}`);
+
+  // Already finished (shouldn't normally happen, but be safe).
+  if (lastTurn.done) {
+    if (followup) followup.focus();
+    return;
+  }
+
+  const writeStreaming = (text) => {
+    answerEl.innerHTML = answerToHtml(text) + '<span class="cursor"></span>';
   };
-
+  const writeFinal = (text) => {
+    answerEl.innerHTML = answerToHtml(text || "(no response)");
+  };
   const fail = (msg) => {
-    prose.innerHTML = `<p style="color:#c00">${msg}</p>`;
+    answerEl.innerHTML = `<p style="color:#c00">${msg}</p>`;
+    lastTurn.done = true;
   };
 
   const waitForSdk = (tries = 0) => {
@@ -1466,14 +1598,15 @@ function mountAnswered() {
   };
 
   waitForSdk()
-    .then(() => window.CerebroEL.startTextChat(state.question, {
-      onMessage: (text) => { lastText = text; renderText(text, true); },
+    .then(() => window.CerebroEL.startTextChat(lastTurn.question, {
+      onMessage: (text) => {
+        lastTurn.answer = text;
+        writeStreaming(text);
+      },
       onEnd: () => {
-        renderText(lastText || "(no response)", false);
-        footer.style.transition = "opacity 400ms ease";
-        footer.style.opacity = "1";
-        rail.style.transition = "opacity 400ms ease";
-        rail.style.opacity = "0.5";
+        writeFinal(lastTurn.answer);
+        lastTurn.done = true;
+        if (followup) followup.focus();
       },
       onError: (msg) => fail(`Connection error: ${msg}. Make sure the agent is published in ElevenLabs.`)
     }))

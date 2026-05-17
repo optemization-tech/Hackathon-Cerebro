@@ -15,6 +15,7 @@ export interface DeckCard {
   statement: string;
   meta: { who: string; when: string; scope: string };
   sources: string[];
+  createdAt: string;
 }
 
 type Prop = Record<string, unknown>;
@@ -101,6 +102,7 @@ function mapDecision(page: Page): DeckCard {
       scope: selectName(p["Scope"]) || selectName(p["Status"]) || "team",
     },
     sources: [notionSource("DECISIONS", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -117,6 +119,7 @@ function mapInsight(page: Page): DeckCard {
       scope: tags.length ? tags.join(" · ") : "insight",
     },
     sources: [notionSource("INSIGHTS", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -140,6 +143,7 @@ function mapPattern(page: Page): DeckCard {
       scope: [freq, valence].filter(Boolean).join(" · ") || "pattern",
     },
     sources: [notionSource("PATTERNS", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -157,6 +161,7 @@ function mapFramework(page: Page): DeckCard {
       scope: tags.length ? tags.join(" · ") : "principle",
     },
     sources: source ? [source.slice(0, 60)] : [notionSource("FRAMEWORKS", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -179,6 +184,7 @@ function mapStrategy(page: Page): DeckCard {
       scope: selectName(p["Status"]) || "in-flight",
     },
     sources: [notionSource("STRATEGIES", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -200,6 +206,7 @@ function mapSignal(page: Page): DeckCard {
     sources: source
       ? source.split(/[,;]/).map((s) => s.trim()).filter(Boolean).slice(0, 3)
       : [notionSource("SIGNALS", page.created_time)],
+    createdAt: page.created_time ?? "",
   };
 }
 
@@ -221,7 +228,8 @@ export async function fetchDeck(perDb = 10): Promise<DeckCard[]> {
 
   const buckets = await Promise.all(
     SOURCES.map(async ({ envKey, map }) => {
-      const dbId = env[envKey] as string;
+      const dbId = env[envKey] as string | undefined;
+      if (!dbId) return [];
       const res = await client.databases.query({
         database_id: dbId,
         page_size: perDb,
@@ -233,13 +241,10 @@ export async function fetchDeck(perDb = 10): Promise<DeckCard[]> {
     }),
   );
 
-  // Interleave so the deck mixes types instead of clumping by DB.
-  const max = Math.max(...buckets.map((b) => b.length));
-  const out: DeckCard[] = [];
-  for (let i = 0; i < max; i++) {
-    for (const b of buckets) {
-      if (b[i]) out.push(b[i]);
-    }
-  }
+  // Flatten and sort globally by created_time DESC. The home feed expects
+  // strict newest-first chronology; the swipe deck benefits from the same
+  // ordering (most recent learnings first).
+  const out = buckets.flat();
+  out.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   return out;
 }
