@@ -18,12 +18,6 @@ function loadSkill(name: string): string {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const secret = process.env.CEREBRO_SHARED_SECRET;
-  if (!secret) return NextResponse.json({ error: "CEREBRO_SHARED_SECRET not configured" }, { status: 500 });
-  if (request.headers.get("x-cerebro-key") !== secret) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
 
