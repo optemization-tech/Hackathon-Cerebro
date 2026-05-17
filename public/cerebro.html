@@ -1097,11 +1097,30 @@
     display: block; width: 20px; background: var(--ink);
   }
 
-  /* fact list in entity panel */
-  .fact-list { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
-  .fact-item { border-left: 2px solid var(--rule); padding-left: 12px; }
-  .fact-date { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); margin-bottom: 2px; }
-  .fact-text { font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
+  /* accordion + fact list */
+  .accordion-section { border-bottom: 1px solid var(--rule); }
+  .accordion-section summary { list-style: none; cursor: pointer; }
+  .accordion-section summary::-webkit-details-marker { display: none; }
+  .accordion-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.08em; color: var(--ink-soft);
+  }
+  .accordion-header:hover { color: var(--ink); }
+  .accordion-count {
+    font-size: 10px; background: var(--bg-paper-deep); border-radius: 8px;
+    padding: 1px 7px; color: var(--ink-muted);
+  }
+  .accordion-body { padding: 0 0 12px; }
+  .fact-list { display: flex; flex-direction: column; gap: 8px; }
+  .fact-item {
+    border-left: 2px solid var(--rule); padding: 4px 0 4px 10px;
+    cursor: pointer; transition: border-color 150ms, background 150ms;
+  }
+  .fact-item:hover { border-left-color: var(--accent); background: rgba(78,95,253,0.04); }
+  .fact-item.highlighted { border-left-color: var(--accent); background: rgba(78,95,253,0.08); }
+  .fact-date { font-family: var(--mono); font-size: 10px; color: var(--ink-muted); margin-bottom: 1px; }
+  .fact-text { font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
 
   /* ─── avatar view ─── */
   .avatar-view {
@@ -1835,25 +1854,43 @@ function renderGraph() {
 function renderEntityPanel(id) {
   if (!id) return `<div class="graph-empty">click a node to inspect</div>`;
 
+  const TYPE_ICONS_PANEL = { person: "👤", company: "🏢", decision: "⚖️", insight: "💡", signal: "📡", pattern: "🔁", strategy: "🎯", framework: "🧩" };
+
   if (state.graphData) {
     const node = state.graphData.nodes.find(n => n.id === id);
     if (!node) return `<div class="graph-empty">node not found</div>`;
 
-    const factsHtml = (node.facts || []).slice(0, 12).map(f => {
-      const date = f.date ? f.date.split("T")[0] : "";
-      return `<div class="fact-item">
-        <div class="fact-date">${date}</div>
-        <div class="fact-text">${firstSentence(f.text)}</div>
-      </div>`;
-    }).join("");
+    const grouped = new Map();
+    for (const f of (node.facts || [])) {
+      const t = f.unitType || f.tags?.unit_type || "general";
+      if (!grouped.has(t)) grouped.set(t, []);
+      grouped.get(t).push(f);
+    }
+
+    let accordionHtml = "";
+    for (const [type, facts] of grouped) {
+      const icon = TYPE_ICONS_PANEL[type] || "📄";
+      const label = TYPE_LABELS[type] || type;
+      const items = facts.slice(0, 20).map(f => {
+        const date = f.date ? f.date.split("T")[0] : "";
+        const fid = f.id || "";
+        return `<div class="fact-item" data-fact-id="${fid}">
+          <div class="fact-date">${date}</div>
+          <div class="fact-text">${firstSentence(f.text)}</div>
+        </div>`;
+      }).join("");
+      accordionHtml += `<details class="accordion-section" open>
+        <summary class="accordion-header"><span>${icon} ${label}</span><span class="accordion-count">${facts.length}</span></summary>
+        <div class="accordion-body"><div class="fact-list">${items}</div></div>
+      </details>`;
+    }
 
     return `
       <div class="panel-eyebrow">// ${node.type.toUpperCase()}</div>
       <h2 class="entity-name">${node.label}</h2>
       <div class="entity-role">${node.factCount} connected facts</div>
       <div class="ascii-rule">─────────────────────────</div>
-      <div class="panel-eyebrow" style="margin-top:16px;">// FACTS</div>
-      <div class="fact-list">${factsHtml || '<div class="graph-empty" style="height:auto;padding:12px 0;">no facts</div>'}</div>
+      ${accordionHtml || '<div class="graph-empty" style="height:auto;padding:12px 0;">no facts</div>'}
     `;
   }
 
@@ -2048,13 +2085,47 @@ async function mountGraph() {
       link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
     }
   });
+  function mountPanelListeners() {
+    document.querySelectorAll(".fact-item[data-fact-id]").forEach(el => {
+      el.addEventListener("mouseenter", () => {
+        const fid = el.dataset.factId;
+        if (!fid) return;
+        canvas.classList.add("has-hover");
+        const matchNodes = new Set();
+        nodes.forEach(n => { if ((n.facts || []).some(f => f.id === fid)) matchNodes.add(n.id); });
+        node.style("opacity", n => matchNodes.has(n.id) ? 1 : 0.08);
+        link.style("opacity", e => {
+          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+          return (matchNodes.has(s) && matchNodes.has(t)) ? 0.6 : 0.02;
+        }).style("stroke-width", e => {
+          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+          return (matchNodes.has(s) && matchNodes.has(t)) ? 2 : 0.5;
+        });
+        el.classList.add("highlighted");
+      });
+      el.addEventListener("mouseleave", () => {
+        el.classList.remove("highlighted");
+        canvas.classList.remove("has-hover");
+        node.style("opacity", 0.85);
+        link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+      });
+    });
+  }
+
   node.on("click", (ev, d) => {
     ev.stopPropagation();
     state.graphFocus = d.id;
     document.getElementById("entity-panel").innerHTML = renderEntityPanel(d.id);
+    mountPanelListeners();
   });
   svg.on("click", (ev) => {
-    if (ev.target === svgEl || ev.target.tagName === "svg") clearTrace();
+    if (ev.target === svgEl || ev.target.tagName === "svg") {
+      state.graphFocus = null;
+      canvas.classList.remove("has-hover");
+      node.style("opacity", 0.85);
+      link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+      document.getElementById("entity-panel").innerHTML = renderEntityPanel(null);
+    }
   });
 
   document.querySelectorAll(".graph-filter-btn").forEach(btn => {
