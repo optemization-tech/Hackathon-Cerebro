@@ -44,6 +44,7 @@ import {
 const MODEL = "claude-sonnet-4-6";
 const MAX_OUTPUT_TOKENS = 4096;
 const MAX_RETRIES = 3;
+const SCOPE_START = "2026-01-01T00:00:00.000Z";
 
 let _client: Anthropic | null = null;
 
@@ -182,7 +183,7 @@ async function pageToDiscussionRecord(
 ): Promise<DiscussionRecord | null> {
 	const props = page.properties;
 	const created = readCreatedTime(props["Created time"]);
-	if (created && created < "2025-01-01") return null;
+	if (created && created < "2026-01-01") return null;
 
 	const speakerId = readFirstPersonId(props["Speaker"]);
 	const speaker = await resolvePersonName(notion, speakerId);
@@ -208,7 +209,7 @@ async function pageToProjectRecord(
 	const status = readStatusName(props["Status"]);
 	if (status === "Canceled" || status === "Cancelled") return null;
 	const created = readCreatedTime(props["Created at"]);
-	if (created && created < "2025-01-01") return null;
+	if (created && created < "2026-01-01") return null;
 
 	const body = await fetchPageContent(notion, page.id);
 
@@ -277,7 +278,7 @@ async function pageToTaskRecord(
 	const status = readStatusName(props["Status"]);
 	if (status === "Canceled" || status === "Cancelled") return null;
 	const created = readCreatedTime(props["Created at"]);
-	if (created && created < "2025-01-01") return null;
+	if (created && created < "2026-01-01") return null;
 
 	const driId = readFirstPersonId(props["DRI"]);
 	const dri = await resolvePersonName(notion, driId);
@@ -358,8 +359,8 @@ async function generateDiscussionBriefs(
 	notion: NotionClient,
 	dataSourceId: string,
 ): Promise<GenerateBriefsResult> {
-	console.log("[briefs:discussions] Querying pages...");
-	const pages = await queryAllPages(notion, dataSourceId);
+	console.log("[briefs:discussions] Querying pages (2026+ only)...");
+	const pages = await queryAllPages(notion, dataSourceId, SCOPE_START);
 	console.log(`[briefs:discussions] Found ${pages.length} pages`);
 
 	const records: DiscussionRecord[] = [];
@@ -433,8 +434,8 @@ async function generateProjectBriefs(
 	notion: NotionClient,
 	dataSourceId: string,
 ): Promise<GenerateBriefsResult> {
-	console.log("[briefs:projects] Querying pages...");
-	const pages = await queryAllPages(notion, dataSourceId);
+	console.log("[briefs:projects] Querying pages (2026+ only)...");
+	const pages = await queryAllPages(notion, dataSourceId, SCOPE_START);
 	console.log(`[briefs:projects] Found ${pages.length} pages`);
 
 	const results: BriefResult[] = [];
@@ -499,8 +500,8 @@ async function generateEngagementBriefs(
 	notion: NotionClient,
 	dataSourceId: string,
 ): Promise<GenerateBriefsResult> {
-	console.log("[briefs:engagements] Querying pages...");
-	const pages = await queryAllPages(notion, dataSourceId);
+	console.log("[briefs:engagements] Querying pages (2026+ only)...");
+	const pages = await queryAllPages(notion, dataSourceId, SCOPE_START);
 	console.log(`[briefs:engagements] Found ${pages.length} pages`);
 
 	const results: BriefResult[] = [];
@@ -563,8 +564,8 @@ async function generatePlaybookBriefs(
 	notion: NotionClient,
 	dataSourceId: string,
 ): Promise<GenerateBriefsResult> {
-	console.log("[briefs:playbook] Querying pages...");
-	const pages = await queryAllPages(notion, dataSourceId);
+	console.log("[briefs:playbook] Querying pages (2026+ only)...");
+	const pages = await queryAllPages(notion, dataSourceId, SCOPE_START);
 	console.log(`[briefs:playbook] Found ${pages.length} pages`);
 
 	const records: PlaybookRecord[] = [];
@@ -631,8 +632,8 @@ async function generateTaskBriefs(
 	notion: NotionClient,
 	dataSourceId: string,
 ): Promise<GenerateBriefsResult> {
-	console.log("[briefs:tasks] Querying pages...");
-	const pages = await queryAllPages(notion, dataSourceId);
+	console.log("[briefs:tasks] Querying pages (2026+ only)...");
+	const pages = await queryAllPages(notion, dataSourceId, SCOPE_START);
 	console.log(`[briefs:tasks] Found ${pages.length} pages`);
 
 	const byProject = new Map<
