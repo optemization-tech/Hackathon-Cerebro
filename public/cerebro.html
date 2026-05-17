@@ -1411,10 +1411,15 @@ function transformHindsightGraph(raw) {
 
   const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
   const visualEdges = rawEdges
-    .slice(0, 80)
-    .map(e => ({ ...e, strength: maxC > 1 ? Math.sqrt(e.count / maxC) : 0.5 }));
+    .filter(e => e.count >= 2)
+    .slice(0, 120)
+    .map(e => ({ ...e, strength: maxC > 1 ? Math.pow(e.count / maxC, 0.35) : 0.5 }));
 
-  return { nodes: visualNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
+  const connectedIds = new Set();
+  visualEdges.forEach(e => { connectedIds.add(e.source); connectedIds.add(e.target); });
+  const connectedNodes = visualNodes.filter(n => connectedIds.has(n.id));
+
+  return { nodes: connectedNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
 }
 
 const SEED_DECK = [
@@ -2026,8 +2031,8 @@ async function mountGraph() {
     while (queue.length > 0) {
       const { id, power } = queue.shift();
       for (const { to, strength, edge } of (adj.get(id) || [])) {
-        const propagated = power * strength * 0.7;
-        if (propagated < 0.05 || visited.has(to)) continue;
+        const propagated = power * (0.3 + strength * 0.7) * 0.65;
+        if (propagated < 0.03 || visited.has(to)) continue;
         visited.add(to);
         influence.set(to, propagated);
         const eid = (typeof edge.source === "object" ? edge.source.id : edge.source) + "|" + (typeof edge.target === "object" ? edge.target.id : edge.target);
