@@ -2,14 +2,23 @@ import { z } from "zod";
 
 const envSchema = z.object({
   NOTION_TOKEN: z.string().min(1, "NOTION_TOKEN required"),
-  NOTION_MEETINGS_DB_ID: z.string().min(1, "NOTION_MEETINGS_DB_ID required"),
+
+  // Distillation DBs (Long-Term Memory). All 12 required for the feed.
+  NOTION_PEOPLE_DB_ID: z.string().min(1),
+  NOTION_COMPANIES_DB_ID: z.string().min(1),
+  NOTION_AGENTS_DB_ID: z.string().min(1),
+  NOTION_PROJECTS_DB_ID: z.string().min(1),
+  NOTION_TASKS_DB_ID: z.string().min(1),
   NOTION_DECISIONS_DB_ID: z.string().min(1),
-  NOTION_THEMES_DB_ID: z.string().min(1),
-  NOTION_ENTITIES_DB_ID: z.string().min(1),
-  NOTION_OPEN_QUESTIONS_DB_ID: z.string().min(1),
-  NOTION_CULTURAL_SIGNALS_DB_ID: z.string().min(1),
-  ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY required"),
-  CRON_SECRET: z.string().min(8, "CRON_SECRET must be at least 8 chars"),
+  NOTION_FRAMEWORKS_DB_ID: z.string().min(1),
+  NOTION_STRATEGIES_DB_ID: z.string().min(1),
+  NOTION_INSIGHTS_DB_ID: z.string().min(1),
+  NOTION_PATTERNS_DB_ID: z.string().min(1),
+  NOTION_SIGNALS_DB_ID: z.string().min(1),
+  NOTION_GLOSSARY_DB_ID: z.string().min(1),
+
+  // Source DB. Optional — the frontend feed doesn't need it; source workers do.
+  NOTION_SHORT_TERM_MEMORY_DB_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
