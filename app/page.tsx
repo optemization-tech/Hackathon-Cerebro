@@ -1,11 +1,18 @@
 import Link from "next/link";
 
 const CATEGORIES = [
+  { key: "people", label: "People" },
+  { key: "companies", label: "Companies" },
+  { key: "agents", label: "Agents" },
+  { key: "projects", label: "Projects" },
+  { key: "tasks", label: "Tasks" },
   { key: "decisions", label: "Decisions" },
-  { key: "themes", label: "Themes" },
-  { key: "entities", label: "Entities" },
-  { key: "openQuestions", label: "Open Questions" },
-  { key: "culturalSignals", label: "Cultural Signals" },
+  { key: "frameworks", label: "Frameworks" },
+  { key: "strategies", label: "Strategies" },
+  { key: "insights", label: "Insights" },
+  { key: "patterns", label: "Patterns" },
+  { key: "signals", label: "Signals" },
+  { key: "glossary", label: "Glossary" },
 ] as const;
 
 type Category = (typeof CATEGORIES)[number]["key"];
@@ -51,7 +58,7 @@ export default async function Page({
       <header style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 32, margin: 0, letterSpacing: "-0.02em" }}>Cerebro</h1>
         <p style={{ color: "var(--muted)", marginTop: 8 }}>
-          Distilled from your Notion meeting notes.
+          Long-term memory, distilled from your Notion workspace.
         </p>
       </header>
 
@@ -88,7 +95,7 @@ export default async function Page({
               color: "var(--muted)",
             }}
           >
-            No records yet. Trigger the ingest endpoint to distill recent meetings.
+            No records yet.
           </div>
         ) : (
           records.map((r) => (
