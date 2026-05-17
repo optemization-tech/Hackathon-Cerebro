@@ -66,6 +66,28 @@ function normalizeType(raw: string): EntityType {
   return raw;
 }
 
+function makeQuery(
+  client: Client,
+  dataSourceId: string,
+): (start_cursor?: string) => Promise<NotionQueryResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = client as any;
+  return async (start_cursor?: string): Promise<NotionQueryResult> => {
+    if (c.dataSources?.query) {
+      return c.dataSources.query({
+        data_source_id: dataSourceId,
+        start_cursor,
+        page_size: 100,
+      });
+    }
+    return c.databases.query({
+      database_id: dataSourceId,
+      start_cursor,
+      page_size: 100,
+    });
+  };
+}
+
 /**
  * Load every row of the Glossary DB and return entries shaped for `clean()`.
  *
@@ -83,25 +105,7 @@ export async function loadGlossary(
 ): Promise<GlossaryEntry[]> {
   const entries: GlossaryEntry[] = [];
   let cursor: string | undefined;
-  // The Notion SDK exposes `dataSources.query` for the new data-source API;
-  // older versions used `databases.query`. Use `any` shim to support both.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c = client as any;
-  // Prefer the new data sources API when available, otherwise fall back.
-  const query = async (start_cursor?: string): Promise<NotionQueryResult> => {
-    if (c.dataSources?.query) {
-      return c.dataSources.query({
-        data_source_id: glossaryDataSourceId,
-        start_cursor,
-        page_size: 100,
-      });
-    }
-    return c.databases.query({
-      database_id: glossaryDataSourceId,
-      start_cursor,
-      page_size: 100,
-    });
-  };
+  const query = makeQuery(client, glossaryDataSourceId);
 
   do {
     const res = await query(cursor);
@@ -123,4 +127,77 @@ export async function loadGlossary(
   } while (cursor);
 
   return entries;
+}
+
+async function loadEntityDb(
+  client: Client,
+  dataSourceId: string,
+  entityType: EntityType,
+): Promise<GlossaryEntry[]> {
+  const entries: GlossaryEntry[] = [];
+  let cursor: string | undefined;
+  const query = makeQuery(client, dataSourceId);
+
+  do {
+    const res = await query(cursor);
+    for (const page of res.results) {
+      const props = page.properties ?? {};
+      const name = title(props.Name);
+      if (!name) continue;
+      const aliases = readAliases(props.Aliases);
+      entries.push({ term: name, aliases, type: entityType });
+    }
+    cursor = res.has_more && res.next_cursor ? res.next_cursor : undefined;
+  } while (cursor);
+
+  return entries;
+}
+
+export async function loadPeople(
+  client: Client,
+  dataSourceId: string,
+): Promise<GlossaryEntry[]> {
+  return loadEntityDb(client, dataSourceId, "PERSON");
+}
+
+export async function loadCompanies(
+  client: Client,
+  dataSourceId: string,
+): Promise<GlossaryEntry[]> {
+  return loadEntityDb(client, dataSourceId, "ORG");
+}
+
+export interface LoadAllEntriesConfig {
+  glossaryId: string;
+  peopleId?: string;
+  companiesId?: string;
+}
+
+export async function loadAllEntries(
+  client: Client,
+  config: LoadAllEntriesConfig,
+): Promise<GlossaryEntry[]> {
+  const loaders: Promise<GlossaryEntry[]>[] = [
+    loadGlossary(client, config.glossaryId),
+  ];
+  if (config.peopleId) loaders.push(loadPeople(client, config.peopleId));
+  if (config.companiesId) loaders.push(loadCompanies(client, config.companiesId));
+
+  const [glossary, ...rest] = await Promise.all(loaders);
+  if (rest.length === 0) return glossary;
+
+  const seen = new Set<string>();
+  for (const entry of glossary) {
+    seen.add(entry.term.toLowerCase());
+  }
+
+  const merged = [...glossary];
+  for (const batch of rest) {
+    for (const entry of batch) {
+      if (seen.has(entry.term.toLowerCase())) continue;
+      seen.add(entry.term.toLowerCase());
+      merged.push(entry);
+    }
+  }
+  return merged;
 }

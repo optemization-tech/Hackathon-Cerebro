@@ -4,7 +4,7 @@ import { Worker } from "@notionhq/workers";
 import { j } from "@notionhq/workers/schema-builder";
 import * as Schema from "@notionhq/workers/schema";
 import { WebClient } from "@slack/web-api";
-import { clean, loadGlossary } from "./cleaning";
+import { clean, loadAllEntries } from "./cleaning";
 import type { GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
@@ -21,27 +21,26 @@ const SLACK_NAMESPACE_UUID = "5f4d8a1c-1b3a-4e5f-9d2c-7e6f8a9b0c1d";
 // 1767225600 = 2026-01-01T00:00:00Z. Messages older than this are skipped.
 const MIN_MESSAGE_TIMESTAMP = "1767225600";
 
-// Resolve the Glossary data source ID from the env or skip cleaning.
-// Set GLOSSARY_DATA_SOURCE_ID to the Glossary DB's data source ID
-// (resolve with `ntn datasources resolve <db-id>`).
-function readGlossaryDataSourceId(): string | null {
-	return process.env.GLOSSARY_DATA_SOURCE_ID?.trim() || null;
+function readEnvId(key: string): string | undefined {
+	return process.env[key]?.trim() || undefined;
 }
 
-// Load the Glossary once per worker run; pass through to clean(). Returns an
-// empty array if the env var is unset (text passes through unchanged).
-async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
-	const glossaryDataSourceId = readGlossaryDataSourceId();
-	if (!glossaryDataSourceId) {
-		console.warn("[slack] GLOSSARY_DATA_SOURCE_ID not set — skipping glossary normalization");
+async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+	const glossaryId = readEnvId("GLOSSARY_DATA_SOURCE_ID");
+	if (!glossaryId) {
+		console.warn("[slack] GLOSSARY_DATA_SOURCE_ID not set — skipping normalization");
 		return [];
 	}
 	try {
-		const entries = await loadGlossary(notion, glossaryDataSourceId);
-		console.log(`[slack] loaded ${entries.length} Glossary entries`);
+		const entries = await loadAllEntries(notion, {
+			glossaryId,
+			peopleId: readEnvId("PEOPLE_DATA_SOURCE_ID"),
+			companiesId: readEnvId("COMPANIES_DATA_SOURCE_ID"),
+		});
+		console.log(`[slack] loaded ${entries.length} normalization entries (Glossary + People + Companies)`);
 		return entries;
 	} catch (err) {
-		console.warn("[slack] loadGlossary failed:", err instanceof Error ? err.message : err);
+		console.warn("[slack] loadAllEntries failed:", err instanceof Error ? err.message : err);
 		return [];
 	}
 }
@@ -351,7 +350,7 @@ async function pullSlackHistory(
 	console.log(
 		`[pullSlackHistory] preloaded ${existingIdsCache.size} existing Slack message IDs for in-memory dedup`,
 	);
-	const glossary = await loadGlossaryOnce(notion);
+	const glossary = await loadEntriesOnce(notion);
 
 	async function getUserInfo(userId: string): Promise<UserCacheEntry> {
 		const cached = userInfoCache.get(userId);
