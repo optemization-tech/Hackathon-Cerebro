@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: `Failed to load decisions from Notion: ${msg}` }, { status: 502 });
   }
 
-  const context = decisions.map((d) =>
+  const context = decisions.slice(0, 50).map((d) =>
     [
       `[${d.decisionId}] ${d.title}`,
       `Status: ${d.status ?? "unknown"} | Scope: ${d.scope ?? "none"} | Date: ${d.decidedOn ?? "unknown"}`,
@@ -77,13 +77,13 @@ export async function POST(request: Request): Promise<Response> {
   let response: Anthropic.Message;
   try {
     response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       system: systemPrompt,
       messages: [{
         role: "user",
         content: `Here are all decisions from the database:\n\n${context}\n\n---\n\nQuestion: ${parsed.data.question}`,
       }],
-      max_tokens: 2048,
+      max_tokens: 1024,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "unknown error";
