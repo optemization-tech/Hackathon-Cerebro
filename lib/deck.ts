@@ -55,11 +55,32 @@ function relationCount(prop: Prop | undefined): number {
   return Array.isArray(arr) ? arr.length : 0;
 }
 
+// Reuse a single Intl.DateTimeFormat instance. Constructing a new formatter
+// on every call (which toLocaleDateString does internally) is measurably
+// slower at scale — a single shared instance is ~5x faster in V8.
+const DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+});
+
+// Memoize parsed-and-formatted dates. The same created_time string appears
+// in notionSource() and the meta.when field of the same card, so each ISO
+// string is formatted at least twice per card. The cache eliminates the
+// redundant Date construction and formatting on the second call.
+const dateCache = new Map<string, string>();
+
 function formatDate(iso: string | undefined): string {
   if (!iso) return "";
+  const cached = dateCache.get(iso);
+  if (cached !== undefined) return cached;
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toLowerCase();
+  if (isNaN(d.getTime())) {
+    dateCache.set(iso, "");
+    return "";
+  }
+  const result = DATE_FORMATTER.format(d).toLowerCase();
+  dateCache.set(iso, result);
+  return result;
 }
 
 function notionSource(dbLabel: string, iso?: string): string {

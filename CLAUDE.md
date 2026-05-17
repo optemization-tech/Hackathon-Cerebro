@@ -1,19 +1,46 @@
 # Cerebro
 
-Optemization's team second brain. Six **source Notion Workers** (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) pull from their respective systems, clean their inputs against a Glossary DB via a shared cleaning library, and write the cleaned text into a workspace-level **Short-Term Memory** DB ([already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d)). The Notion-Docs worker watches the org's existing Docs database(s); for Optemization, [this one](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7). A dedicated **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank (`optemization-cerebro`). Hindsight handles fact extraction, entity resolution, and observation consolidation. A **Cerebro Sync Worker** receives Hindsight webhooks and writes structured records into **Long-Term Memory** — eleven Notion DBs spanning dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), and intelligence (Frameworks, Strategies, Insights, Patterns, Signals). An **Ask Cerebro** Custom Agent answers questions via Hindsight `reflect()`, surfaced through a Tavus video avatar, ElevenLabs voice chat, the Notion agent UI, and a force-directed graph viz on a Next.js page.
+Optemization's team second brain. **Source Notion Workers** pull from external systems (Slack, Google, meetings, etc.), clean their inputs against a Glossary DB, and write cleaned text into a workspace-level **Short-Term Memory** DB ([already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d)). A dedicated **Hindsight Indexer Worker** (not yet built) will poll Short-Term Memory on a 5-minute cron and feed new rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank (`optemization-cerebro`). Hindsight handles fact extraction, entity resolution, and observation consolidation. A **Cerebro Sync Worker** (not yet built) will receive Hindsight webhooks and write structured records into **Long-Term Memory** — twelve Notion DBs spanning dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), intelligence (Frameworks, Strategies, Insights, Patterns, Signals), and a shared Glossary. An **Ask Cerebro** Custom Agent will answer questions via Hindsight `reflect()`, surfaced through a Tavus video avatar, ElevenLabs voice chat, the Notion agent UI, and a force-directed graph viz on a Next.js page.
 
 Notion is the canonical raw store. Source workers clean before writing (via a shared Glossary-normalization library). Hindsight is an index/query engine on top, fed by the Indexer Worker. Source workers never call Hindsight directly.
 
 Built for the Notion Developer Platform Hackathon (May 16–17, San Francisco), dogfooded by the Optemization team on our own data, with consulting clients like AIVC as the post-hackathon product target.
 
-**Before doing any work in this repo, read [`docs/specs/cerebro.md`](docs/specs/cerebro.md).** It's a single spec with two clearly-labeled sections: **Hackathon scope (V1)** for what ships by Sunday demo, and **Product scope (V1.1 → V3)** for the long-arc vision (Hindsight Cloud → self-host → fork triggers; full data model; roadmap). Read the hackathon section if you're contributing this weekend; skim the product section for context on direction.
+**Before doing any work in this repo, read [`docs/specs/cerebro.md`](docs/specs/cerebro.md).** It's a single spec with two clearly-labeled sections: **Hackathon scope (V1)** for what ships by Sunday demo, and **Product scope (V1.1 → V3)** for the long-arc vision. Read the hackathon section if you're contributing this weekend; skim the product section for context on direction.
 
-The spec supersedes the V0 scaffold in `lib/` (which distills via Anthropic directly into 5 flat DBs). Default to evolving V0 toward the hackathon V1, not building parallel.
+**For current build status, see [`STATUS.md`](STATUS.md)** — what's built, what's not, known issues.
 
-Repo layout:
-- `app/`, `lib/` — Next.js app + V0 distillation pipeline (Vercel cron → Anthropic → 5 flat DBs). Visual surfaces (Tavus avatar, graph viz, Q&A API at `/api/ask`) land here.
-- `slack/` — canonical Notion Worker pattern. New source workers (Granola, Circleback, GMail, GCal, Notion-Docs) follow this shape: pull from their source, parse, call `clean()` from the shared cleaning library, write to Short-Term Memory. The Hindsight Indexer Worker is a separate Notion Worker that polls Short-Term Memory and feeds Hindsight.
-- `docs/specs/cerebro.md` — the single source of truth.
+## Worker registry
+
+| Worker | Location | Status | What it does |
+|---|---|---|---|
+| Slack | `slack/` | Deployed | Pulls Slack messages → cleans → writes to STM |
+| Google (GMail + GCal) | `google/` | Built, not deployed | Pulls Gmail + Calendar via domain-wide delegation → writes to STM |
+| Meetings Ingest | `workers/meetings-ingest/` | Deployed | Reads Notion Calendar DB → extracts transcripts → writes to STM |
+| Hindsight Indexer | — | Not started | Will poll STM → call Hindsight `retain()` → mark indexed |
+| Cerebro Sync | — | Not started | Will receive Hindsight webhooks → classify → write to Long-Term Memory |
+| Granola | — | Not started | Meeting recording source |
+| Circleback | — | Not started | Meeting transcription source |
+| Notion-Docs | — | Not started | Watches org Docs DB |
+
+All source workers use the [Notion Workers SDK](https://developers.notion.com/docs/notion-workers) with backfill + delta syncs. Each is a standalone npm project with its own `package.json` and `tsconfig.json`.
+
+### Adding a new worker
+
+1. Copy `slack/` as the template (canonical Notion Workers SDK scaffold).
+2. Place at `<source-name>/` at the repo root (same level as `slack/` and `google/`).
+3. Each worker is a standalone npm project — run `npm install` inside its directory.
+4. Write to Short-Term Memory only. Do NOT call Hindsight directly. Do NOT write to Long-Term Memory.
+5. The worker's `CLAUDE.md` is a symlink managed by the SDK — leave it as-is. Project-level context comes from this root `CLAUDE.md`.
+
+## Repo layout
+
+- `app/`, `lib/` — Next.js app (App Router on Vercel). `lib/env.ts` validates 12 Long-Term Memory DB IDs + Hindsight config via Zod. `lib/deck.ts` maps Notion records to card types. V0 distillation pipeline in `lib/` is legacy — the V1 architecture uses workers + Hindsight instead.
+- `slack/` — Slack source worker (Notion Workers SDK). Deployed and running.
+- `google/` — Google source worker (Notion Workers SDK). GMail + GCal via domain-wide delegation. Built, needs deploy.
+- `workers/meetings-ingest/` — Meetings ingest worker (Notion Workers SDK). Reads Notion Calendar DB. Deployed and running.
+- `scripts/` — One-off setup scripts (Hindsight bootstrap, calendar introspection).
+- `docs/specs/cerebro.md` — the single source of truth for architecture and scope.
 
 ---
 
@@ -123,10 +150,9 @@ These are CLI/desktop-only redundancy for the rules above. The prompt rules in t
 
 ## Architecture (high-level)
 
-- **Frontend + API**: Next.js (App Router) on Vercel
-- **Data store**: Notion databases (no separate DB). Five output DBs: Decisions, Themes, Entities, Open Questions, Cultural Signals.
-- **Ingestion**: Vercel Cron hits `/api/ingest` every 30 min → reads recent meeting pages from a Notion source DB → distills via Claude → writes structured records to the five output DBs.
-- **UI**: feed reads from the same Notion DBs.
-- **`slack/`**: separate Notion-Workers scaffold owned by the Slack ingestion teammate. Untouched by the main app.
+- **Frontend + API**: Next.js (App Router) on Vercel. Feed and swipe deck read from Long-Term Memory DBs.
+- **Data store**: Notion databases (no separate DB). Twelve Long-Term Memory DBs: People, Companies, Agents, Projects, Tasks, Decisions, Frameworks, Strategies, Insights, Patterns, Signals, Glossary. Plus Short-Term Memory (workspace-level raw store).
+- **Ingestion**: Source workers (see registry above) pull from external APIs → clean → write to Short-Term Memory. Hindsight Indexer (not yet built) will poll STM and feed Hindsight Cloud. Cerebro Sync (not yet built) will write distilled records to Long-Term Memory.
+- **Q&A surfaces** (not yet built): Ask Cerebro agent, Tavus avatar, ElevenLabs voice, graph viz.
 
-Env vars: see `.env.example`. Notion DB IDs must be filled in by the operator after creating the five output databases in Notion.
+Env vars: see `.env.example` for root app (12 LTM DB IDs + Hindsight config). Each worker has its own env needs — check `.env.example` or source code in the worker's directory.
