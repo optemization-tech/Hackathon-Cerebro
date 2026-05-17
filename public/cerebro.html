@@ -1407,13 +1407,12 @@ function transformHindsightGraph(raw) {
       primaryType: [...e.types].sort((a, b) => (LINK_PRIORITY[b] || 0) - (LINK_PRIORITY[a] || 0))[0],
       count: e.count
     }))
-    .sort((a, b) => b.avgWeight - a.avgWeight);
+    .sort((a, b) => b.count - a.count);
 
-  const maxW = rawEdges.length > 0 ? rawEdges[0].avgWeight : 1;
-  const minW = rawEdges.length > 10 ? rawEdges[Math.min(rawEdges.length - 1, 50)].avgWeight : 0;
+  const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
   const visualEdges = rawEdges
     .slice(0, 80)
-    .map(e => ({ ...e, strength: maxW > minW ? (e.avgWeight - minW) / (maxW - minW) : 0.5 }));
+    .map(e => ({ ...e, strength: maxC > 1 ? Math.sqrt(e.count / maxC) : 0.5 }));
 
   return { nodes: visualNodes, edges: visualEdges, rawNodeCount: raw.nodes.length, rawEdgeCount: raw.edges.length };
 }
@@ -1917,7 +1916,7 @@ async function mountGraph() {
     if (!state.graphData) {
       state.graphData = {
         nodes: SEED_GRAPH.nodes.map(n => ({ id: n.id, type: n.type, label: n.label, factCount: 1, facts: [{ text: n.role || "", date: "" }] })),
-        edges: SEED_GRAPH.links.map(l => ({ source: l.s, target: l.t, primaryType: "entity", avgWeight: 0.6, count: 1 })),
+        edges: SEED_GRAPH.links.map(l => ({ source: l.s, target: l.t, primaryType: "entity", avgWeight: 1, count: 1, strength: 0.5 })),
         rawNodeCount: SEED_GRAPH.nodes.length, rawEdgeCount: SEED_GRAPH.links.length
       };
     }
@@ -2008,31 +2007,81 @@ async function mountGraph() {
   });
 
   const canvas = container;
-  function highlightNode(hid) {
-    canvas.classList.add("has-hover");
-    node.classed("highlight", false);
-    link.classed("highlight", false);
-    node.filter(d => d.id === hid).classed("highlight", true);
-    link.each(function(d) {
-      const sid = typeof d.source === "object" ? d.source.id : d.source;
-      const tid = typeof d.target === "object" ? d.target.id : d.target;
-      if (sid === hid || tid === hid) {
-        d3.select(this).classed("highlight", true);
-        const other = sid === hid ? tid : sid;
-        node.filter(n => n.id === other).classed("highlight", true);
+  const adj = new Map();
+  edges.forEach(e => {
+    const sid = typeof e.source === "object" ? e.source.id : e.source;
+    const tid = typeof e.target === "object" ? e.target.id : e.target;
+    if (!adj.has(sid)) adj.set(sid, []);
+    if (!adj.has(tid)) adj.set(tid, []);
+    adj.get(sid).push({ to: tid, strength: e.strength, edge: e });
+    adj.get(tid).push({ to: sid, strength: e.strength, edge: e });
+  });
+
+  function influenceDecay(rootId) {
+    const influence = new Map();
+    const edgeInfluence = new Map();
+    influence.set(rootId, 1.0);
+    const queue = [{ id: rootId, power: 1.0 }];
+    const visited = new Set([rootId]);
+    while (queue.length > 0) {
+      const { id, power } = queue.shift();
+      for (const { to, strength, edge } of (adj.get(id) || [])) {
+        const propagated = power * strength * 0.7;
+        if (propagated < 0.05 || visited.has(to)) continue;
+        visited.add(to);
+        influence.set(to, propagated);
+        const eid = (typeof edge.source === "object" ? edge.source.id : edge.source) + "|" + (typeof edge.target === "object" ? edge.target.id : edge.target);
+        edgeInfluence.set(eid, Math.max(edgeInfluence.get(eid) || 0, propagated));
+        queue.push({ id: to, power: propagated });
       }
-    });
-  }
-  function clearHighlight() {
-    canvas.classList.remove("has-hover");
-    node.classed("highlight", d => d.id === state.graphFocus);
-    link.classed("highlight", false);
+    }
+    return { influence, edgeInfluence };
   }
 
-  node.on("mouseenter", (ev, d) => highlightNode(d.id));
-  node.on("mouseleave", clearHighlight);
+  function applyInfluence(rootId) {
+    canvas.classList.add("has-hover");
+    const { influence, edgeInfluence } = influenceDecay(rootId);
+    node
+      .style("opacity", d => d.id === rootId ? 1 : (influence.get(d.id) || 0.06))
+      .select("circle, rect").style("transform", d => {
+        const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
+        return inf > 0.1 ? `scale(${1 + inf * 0.3})` : "scale(1)";
+      });
+    node.select(".graph-node-label").style("opacity", d => {
+      const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
+      return inf > 0.15 ? 1 : inf > 0.05 ? 0.4 : 0;
+    });
+    link
+      .style("opacity", d => {
+        const sid = typeof d.source === "object" ? d.source.id : d.source;
+        const tid = typeof d.target === "object" ? d.target.id : d.target;
+        const eid = sid + "|" + tid;
+        const eid2 = tid + "|" + sid;
+        return edgeInfluence.get(eid) || edgeInfluence.get(eid2) || 0.03;
+      })
+      .style("stroke-width", d => {
+        const sid = typeof d.source === "object" ? d.source.id : d.source;
+        const tid = typeof d.target === "object" ? d.target.id : d.target;
+        const eid = sid + "|" + tid;
+        const eid2 = tid + "|" + sid;
+        const inf = edgeInfluence.get(eid) || edgeInfluence.get(eid2) || 0;
+        return 1 + inf * 5;
+      });
+  }
+
+  function clearInfluence() {
+    canvas.classList.remove("has-hover");
+    node.style("opacity", 1).select("circle, rect").style("transform", null);
+    node.select(".graph-node-label").style("opacity", 1);
+    link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7).style("stroke-width", d => 1 + (d.strength || 0) * 5);
+  }
+
+  node.on("mouseenter", (ev, d) => applyInfluence(d.id));
+  node.on("mouseleave", () => { if (!state.graphFocus) clearInfluence(); else applyInfluence(state.graphFocus); });
   node.on("click", (ev, d) => {
-    setState({ graphFocus: d.id });
+    state.graphFocus = d.id;
+    applyInfluence(d.id);
+    document.getElementById("entity-panel").innerHTML = renderEntityPanel(d.id);
   });
 
   document.querySelectorAll(".graph-filter-btn").forEach(btn => {
@@ -2058,7 +2107,7 @@ async function mountGraph() {
       node.attr("transform", d => `translate(${d.x},${d.y})`);
     });
 
-  if (state.graphFocus) highlightNode(state.graphFocus);
+  if (state.graphFocus) applyInfluence(state.graphFocus);
 }
 
 /* ─── speak (voice-only ElevenLabs) ─── */
