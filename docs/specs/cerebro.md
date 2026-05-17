@@ -564,13 +564,23 @@ Internals:
 
 **Fallback if Hindsight Cloud is unavailable:** the Q&A API calls Anthropic Claude directly with `relatedMemories` / `searchMemories` Worker tools as function-call schemas. Same external surface. Time-box the Hindsight integration to Saturday afternoon — fall back if it's not working.
 
-## Demo flow (3 minutes)
+## Demo flow (~3 minutes)
 
-1. **Setup (~20s):** "We legibilized Optemization. Six source Workers writing into Notion's Short-Term Memory after cleaning each input against the org's Glossary. One Indexer Worker pushing that into Hindsight Cloud. One Sync Worker reading Hindsight's insights back into Long-Term Memory. Two Custom Agents. Six Long-Term Memory DBs. All on Notion's Developer Platform with Hindsight as the memory engine." Show Short-Term Memory ticking forward (a Slack message just landed, Status flipping from `cleaned` → `indexed` → `distilled`), Long-Term Memory populated.
-2. **The avatar (~60s):** Open the Tavus avatar page. Ask "What did RC commit to with us last week?" Avatar speaks back; citations populate the side panel; click a citation to jump into the Short-Term Memory entry in Notion.
-3. **Voice (~30s):** Switch to ElevenLabs hosted chat. Ask "What's the team feeling about Asana vs Linear right now?" — Hindsight pulls Signals + Insights, reflects, speaks back. Same backend, different surface.
-4. **Graph (~40s):** Open the graph viz. Force-directed layout of people ↔ decisions ↔ signals/insights. Click RC's node — side panel shows his interaction history, recent decisions, signals around him.
-5. **The platform kicker (~30s):** Quick view of the Notion agent UI with Ask Cerebro running natively. "And by the way, all of this works inside Notion too because Ask Cerebro is a Custom Agent calling a Worker tool that calls Hindsight reflect." Cut to the worker dashboard showing all eight Workers live. End on Short-Term Memory ticking forward as another Slack thread comes in — and the Glossary normalizing "Aar See" → "RC Willenbrock" right in front of the audience.
+1. **Introduction (~25s):** Open with the framing: *"Cerebro is Optemization's team second brain. Everything our team produces — Slack, meetings, email, calendar, internal docs — gets pulled in, cleaned, and indexed into a layered memory architecture. Claude sits on top and turns that memory into five different ways to talk to it. All on the Notion Developer Platform. Here's the pipeline:"*
+
+    - **External software inputs** — Slack, Google (Gmail + Calendar), meeting tools, Notion-Docs.
+    - **Source Workers** — clean each input against the Glossary and write into Notion's workspace-level **Short-Term Memory**.
+    - **Hindsight Indexer Worker** — pushes STM rows into Hindsight Cloud for fact extraction and consolidation.
+    - **Cerebro Sync Worker** — pulls Hindsight's insights back into the **Long-Term Memory** Notion DBs (the distilled layer).
+    - **Claude and Claude skills** — interpret the distilled layer and feed the **front-end interaction surfaces**.
+
+    On screen: Short-Term Memory ticking forward (Status flipping `cleaned` → `indexed` → `distilled`) and Long-Term Memory populated.
+2. **Chat (~45s):** Open the chat surface. Ask "What did RC commit to with us last week?" Claude streams back with citations populating the side panel — click one to jump into the Short-Term Memory entry in Notion. This is the workhorse surface, hitting `/api/ask` directly.
+3. **Voice (~25s):** Switch to ElevenLabs hosted chat. Ask "What's the team feeling about Asana vs Linear right now?" — same backend, voice surface. Hindsight pulls Signals + Insights, reflects, speaks back.
+4. **Swipe (~25s):** Open the swipe deck. Cards rendered from Long-Term Memory (People, Decisions, Insights). Swipe through to show the distilled layer is browseable, not just queryable — the same memory, a different mode of consumption.
+5. **Graph (~30s):** Open the graph viz. Force-directed layout of people ↔ decisions ↔ signals/insights. Click RC's node — side panel shows his interaction history, recent decisions, signals around him.
+6. **Santa (~25s):** Flip the Tavus avatar into live mode with the Santa specialty avatar. Same backend, theatrical surface — Santa answers a question about the team. Point: the interaction layer is character-swappable; avatar identity is a costume on top of the same memory.
+7. **Recap (~15s):** Close with the framing: *"That's Cerebro — five layers stacked: external software inputs, source Workers, a memory synthesis middle layer (Short-Term Memory → Hindsight → Long-Term Memory), Claude and Claude skills for interpretation, and a custom front end built on unique AI interaction surfaces. Built on the Notion Developer Platform — and the same pattern points at any team's tool stack tomorrow."* End on Short-Term Memory ticking forward as another Slack thread lands — and the Glossary normalizing "Aar See" → "RC Willenbrock" in front of the audience.
 
 ## MVP cut
 
