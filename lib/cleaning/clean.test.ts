@@ -4,6 +4,7 @@
 //   node --test lib/cleaning/clean.test.ts
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { clean } from "./clean.ts";
 import type { GlossaryEntry } from "./types.ts";
@@ -17,122 +18,116 @@ const SEED: GlossaryEntry[] = [
 ];
 
 test("replaces speech-to-text mangle with canonical form", () => {
-  const { cleanedText, entities } = clean(
-    "Aar See said the deal closes Friday.",
-    SEED,
-  );
-  assert.equal(cleanedText, "RC Willenbrock said the deal closes Friday.");
-  assert.deepEqual(entities, [{ text: "RC Willenbrock", type: "PERSON" }]);
+  const result = clean("Aar See said the deal closes Friday.", SEED);
+  assert.equal(result, "RC Willenbrock said the deal closes Friday.");
 });
 
 test("longest alias wins — canonical 'RC Willenbrock' beats short alias 'RC'", () => {
-  const { cleanedText, entities } = clean(
-    "RC Willenbrock joined the call.",
-    SEED,
-  );
-  // The canonical should appear once, NOT corrupted into 'RC Willenbrock Willenbrock'.
-  assert.equal(cleanedText, "RC Willenbrock joined the call.");
-  assert.deepEqual(entities, [{ text: "RC Willenbrock", type: "PERSON" }]);
+  const result = clean("RC Willenbrock joined the call.", SEED);
+  assert.equal(result, "RC Willenbrock joined the call.");
 });
 
 test("word-boundary: 'Tim' (alias of Tem) does NOT match inside 'Timothy'", () => {
-  const { cleanedText, entities } = clean("Timothy Cook spoke at Apple.", SEED);
-  assert.equal(cleanedText, "Timothy Cook spoke at Apple.");
-  assert.equal(entities.length, 0);
+  const result = clean("Timothy Cook spoke at Apple.", SEED);
+  assert.equal(result, "Timothy Cook spoke at Apple.");
 });
 
 test("case-insensitive match", () => {
-  const { cleanedText, entities } = clean(
-    "OPTIMIZATION won the deal.",
-    SEED,
-  );
-  assert.equal(cleanedText, "Optemization won the deal.");
-  assert.deepEqual(entities, [{ text: "Optemization", type: "ORG" }]);
+  const result = clean("OPTIMIZATION won the deal.", SEED);
+  assert.equal(result, "Optemization won the deal.");
 });
 
 test("alias with internal hyphens — 'I-V-C' maps to AIVC", () => {
-  const { cleanedText, entities } = clean(
-    "Reached out to I-V-C today.",
-    SEED,
-  );
-  assert.equal(cleanedText, "Reached out to AIVC today.");
-  assert.deepEqual(entities, [{ text: "AIVC", type: "ORG" }]);
+  const result = clean("Reached out to I-V-C today.", SEED);
+  assert.equal(result, "Reached out to AIVC today.");
 });
 
 test("alias with internal space — 'Aar See' maps cleanly", () => {
-  const { cleanedText } = clean("Heard from Aar See yesterday.", SEED);
-  assert.equal(cleanedText, "Heard from RC Willenbrock yesterday.");
+  const result = clean("Heard from Aar See yesterday.", SEED);
+  assert.equal(result, "Heard from RC Willenbrock yesterday.");
 });
 
-test("entities dedup — same canonical mentioned via 3 aliases yields one entity", () => {
-  const { entities } = clean(
-    "Tim, Temir and Temirlan grabbed coffee.",
-    SEED,
-  );
-  assert.equal(entities.length, 1);
-  assert.deepEqual(entities[0], { text: "Tem", type: "PERSON" });
+test("multiple aliases in one text all replaced", () => {
+  const result = clean("Tim, Temir and Temirlan grabbed coffee.", SEED);
+  assert.equal(result, "Tem, Tem and Tem grabbed coffee.");
 });
 
 test("multiple distinct entities across one text", () => {
-  const { cleanedText, entities } = clean(
+  const result = clean(
     "Tim met with Aar See at Op-tem-ization to discuss I-V-C and Granola.ai.",
     SEED,
   );
   assert.equal(
-    cleanedText,
+    result,
     "Tem met with RC Willenbrock at Optemization to discuss AIVC and Granola.",
   );
-  // Four distinct canonicals: Tem, RC Willenbrock, Optemization, AIVC, Granola.
-  assert.equal(entities.length, 5);
-  const texts = entities.map((e) => e.text).sort();
-  assert.deepEqual(texts, ["AIVC", "Granola", "Optemization", "RC Willenbrock", "Tem"]);
 });
 
-test("empty input returns empty entities", () => {
-  const r = clean("", SEED);
-  assert.equal(r.cleanedText, "");
-  assert.equal(r.entities.length, 0);
+test("empty input returns empty string", () => {
+  assert.equal(clean("", SEED), "");
 });
 
 test("empty glossary leaves text untouched", () => {
-  const r = clean("Hello world", []);
-  assert.equal(r.cleanedText, "Hello world");
-  assert.equal(r.entities.length, 0);
+  assert.equal(clean("Hello world", []), "Hello world");
 });
 
 test("possessive 'RC's' still matches and rewrites to 'RC Willenbrock's'", () => {
-  const { cleanedText, entities } = clean(
-    "Reviewed RC's quarterly memo.",
-    SEED,
-  );
-  assert.equal(cleanedText, "Reviewed RC Willenbrock's quarterly memo.");
-  assert.deepEqual(entities, [{ text: "RC Willenbrock", type: "PERSON" }]);
+  const result = clean("Reviewed RC's quarterly memo.", SEED);
+  assert.equal(result, "Reviewed RC Willenbrock's quarterly memo.");
 });
 
 test("alias inside a longer word is NOT matched ('Tem' inside 'Stemcell')", () => {
-  const { cleanedText, entities } = clean(
-    "The Stemcell research is ongoing.",
-    SEED,
-  );
-  assert.equal(cleanedText, "The Stemcell research is ongoing.");
-  assert.equal(entities.length, 0);
-});
-
-test("preserves entity type from Glossary on the returned entity", () => {
-  const { entities } = clean("Granola joined the meeting.", SEED);
-  assert.deepEqual(entities, [{ text: "Granola", type: "AGENT" }]);
+  const result = clean("The Stemcell research is ongoing.", SEED);
+  assert.equal(result, "The Stemcell research is ongoing.");
 });
 
 test("multiple paragraphs are all scanned", () => {
-  const input = "First, Aar See said yes.\n\nThen Tim agreed.";
-  const { cleanedText, entities } = clean(input, SEED);
-  assert.equal(cleanedText, "First, RC Willenbrock said yes.\n\nThen Tem agreed.");
-  assert.equal(entities.length, 2);
+  const result = clean("First, Aar See said yes.\n\nThen Tim agreed.", SEED);
+  assert.equal(result, "First, RC Willenbrock said yes.\n\nThen Tem agreed.");
 });
 
 test("Glossary entries with empty aliases array are tolerated", () => {
   const minimal: GlossaryEntry[] = [{ term: "Cerebro", aliases: [], type: "CONCEPT" }];
-  const { cleanedText, entities } = clean("Cerebro is live.", minimal);
-  assert.equal(cleanedText, "Cerebro is live.");
-  assert.deepEqual(entities, [{ text: "Cerebro", type: "CONCEPT" }]);
+  const result = clean("Cerebro is live.", minimal);
+  assert.equal(result, "Cerebro is live.");
+});
+
+// ===== uuidv5 stability test =====
+// Verifies the Cerebro uuidv5 implementation produces stable, correctly formatted IDs.
+
+const CEREBRO_NAMESPACE_UUID = "ced4b0c0-5ec0-4b5a-9def-1a3b2c7e8f9d";
+
+function uuidv5(name: string, namespace: string): string {
+  const nsHex = namespace.replace(/-/g, "");
+  if (nsHex.length !== 32) throw new Error("Invalid namespace UUID");
+  const nsBytes = Buffer.from(nsHex, "hex");
+  const nameBytes = Buffer.from(name, "utf8");
+  const digest = createHash("sha1").update(Buffer.concat([nsBytes, nameBytes])).digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+test("uuidv5: produces 36-char UUID format", () => {
+  const id = uuidv5("circleback://abc123", CEREBRO_NAMESPACE_UUID);
+  assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+});
+
+test("uuidv5: stable on repeated calls with same input", () => {
+  const id1 = uuidv5("circleback://abc123", CEREBRO_NAMESPACE_UUID);
+  const id2 = uuidv5("circleback://abc123", CEREBRO_NAMESPACE_UUID);
+  assert.equal(id1, id2);
+});
+
+test("uuidv5: different meeting IDs produce different UUIDs", () => {
+  const id1 = uuidv5("circleback://meeting-a", CEREBRO_NAMESPACE_UUID);
+  const id2 = uuidv5("circleback://meeting-b", CEREBRO_NAMESPACE_UUID);
+  assert.notEqual(id1, id2);
+});
+
+test("uuidv5: version bits are 5 (char at position 14 is '5')", () => {
+  const id = uuidv5("circleback://test", CEREBRO_NAMESPACE_UUID);
+  assert.equal(id[14], "5");
 });

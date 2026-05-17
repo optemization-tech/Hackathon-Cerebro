@@ -5,7 +5,7 @@ import * as Schema from "@notionhq/workers/schema";
 import { JWT } from "google-auth-library";
 import { google, type admin_directory_v1, type calendar_v3, type gmail_v1 } from "googleapis";
 import { clean, loadGlossary } from "./cleaning";
-import type { Entity, GlossaryEntry } from "./cleaning";
+import type { GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
 export default worker;
@@ -30,20 +30,6 @@ async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEntry[]> 
 		console.warn("[google] loadGlossary failed:", err instanceof Error ? err.message : err);
 		return [];
 	}
-}
-
-// Merge entity arrays, dedup by (type, text). Used when an item has multiple
-// cleaned fields (e.g. email body + subject) so the recognized entities
-// from each pass aggregate cleanly.
-function mergeEntities(...lists: Entity[][]): Entity[] {
-	const seen = new Map<string, Entity>();
-	for (const list of lists) {
-		for (const e of list) {
-			const key = `${e.type}:${e.text}`;
-			if (!seen.has(key)) seen.set(key, e);
-		}
-	}
-	return Array.from(seen.values());
 }
 
 // =========================================================================
@@ -384,7 +370,6 @@ async function resolveNotionUser(
 async function upsertGoogleItem(
 	notion: NotionClient,
 	item: GoogleItem,
-	entities: Entity[],
 	caches: {
 		userMatch?: Map<string, string | null>;
 		existingIds?: Map<string, { pageId: string }>;
@@ -418,7 +403,6 @@ async function upsertGoogleItem(
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: dataType } },
 		Status: { select: { name: "pending" } },
-		Entities: { rich_text: [{ type: "text", text: { content: JSON.stringify(entities) } }] },
 	};
 	if (ownerNotionId) {
 		properties["Person Source"] = { people: [{ id: ownerNotionId }] };
@@ -740,27 +724,20 @@ async function pullForAllUsers(
 					// Email: subject + body. Event: summary + description.
 					// `redact()` already ran for sensitive patterns; clean() handles aliases.
 					let normalized = item;
-					let entities: Entity[] = [];
 					if (item.kind === "email") {
-						const subjectClean = clean(item.subject, glossary);
-						const bodyClean = clean(item.bodyPlain, glossary);
-						entities = mergeEntities(subjectClean.entities, bodyClean.entities);
 						normalized = {
 							...item,
-							subject: subjectClean.cleanedText,
-							bodyPlain: bodyClean.cleanedText,
+							subject: clean(item.subject, glossary),
+							bodyPlain: clean(item.bodyPlain, glossary),
 						};
 					} else {
-						const summaryClean = clean(item.summary, glossary);
-						const descClean = clean(item.description, glossary);
-						entities = mergeEntities(summaryClean.entities, descClean.entities);
 						normalized = {
 							...item,
-							summary: summaryClean.cleanedText,
-							description: descClean.cleanedText,
+							summary: clean(item.summary, glossary),
+							description: clean(item.description, glossary),
 						};
 					}
-					const res = await upsertGoogleItem(notion, normalized, entities, {
+					const res = await upsertGoogleItem(notion, normalized, {
 						userMatch,
 						existingIds,
 					});

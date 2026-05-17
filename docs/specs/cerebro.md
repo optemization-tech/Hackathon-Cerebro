@@ -185,7 +185,6 @@ Schemas are defined once here in their forward-compatible form; the **Status** c
 | Source | select | `Slack` / `Granola` / `Circleback` / `GMail` / `GCal` / `Notion`. |
 | Person Source | person (limit 1) | The Optemization team member whose account this came from. |
 | Status | select | `pending` (source wrote it) / `indexed` (Indexer pushed to Hindsight) / `distilled` (Sync Worker wrote it to Long-Term Memory) / `failed`. |
-| Entities | rich_text (JSON) | Glossary entities the cleaning library recognized, in Hindsight's `entities` schema (`[{text, type}]`). The Indexer passes these to `retain()`. Optional but improves entity graph quality. |
 | Created time / Created by | system | Auto. |
 
 **Raw body (cleaned)** is stored as the row's page content (not as a property).
@@ -376,7 +375,7 @@ Each source worker is a thin source adapter: pull from external API → parse so
 
 **Canonical pattern:** see `slack/src/index.ts`. Each worker is a Notion Worker with a sync capability writing into Short-Term Memory. Dedup via the source system's stable UUID written to the `ID` property. Schedule: every 30 minutes for the demo. Pacer respects upstream API limits.
 
-**Cleaning step (every worker):** after parsing the source-specific payload but before writing to Short-Term Memory, call `clean(content, glossary)` from the shared library. Store the cleaned text in the row's page body; store the returned `entities` JSON in the row's `Entities` property.
+**Cleaning step (every worker):** after parsing the source-specific payload but before writing to Short-Term Memory, call `clean(content, glossary)` from the shared library. Store the cleaned text in the row's page body. The library performs alias → canonical term substitution only — entity extraction is Hindsight's job during `retain()`.
 
 **Architectural rule:** source workers write only to Short-Term Memory. They do NOT call Hindsight. They do NOT write to Long-Term Memory. The Indexer Worker is the sole Hindsight writer; the Sync Worker is the sole Long-Term Memory writer.
 
@@ -391,7 +390,7 @@ import { clean } from "./cleaning";
 import { loadGlossary } from "./glossary";
 
 const glossary = await loadGlossary(notionClient);
-const { cleanedText, entities } = clean(rawText, glossary);
+const cleanedText = clean(rawText, glossary);
 ```
 
 ### Behavior
@@ -401,11 +400,9 @@ const { cleanedText, entities } = clean(rawText, glossary);
    - Case-insensitive match.
    - Word-boundary aware (so "Tim" doesn't match inside "Timothy").
    - Longest-alias-first (so "I-V-C" doesn't get partially matched by a single-letter alias).
-3. Returns:
-   - `cleanedText` — the normalized body.
-   - `entities` — `[{text, type}]` for every Glossary entry matched, ready to pass to Hindsight `retain()`'s `entities` parameter.
+3. Returns the normalized string directly. **No entity extraction** — that is Hindsight's job during `retain()`. Keeping cleaning to text normalization only makes the library simpler and avoids double-work between the source workers and Hindsight.
 
-The Indexer reads `entities` from the Short-Term Memory row's property and passes it through to Hindsight. Hindsight's LLM uses these as "guaranteed entities to recognize," producing a clean entity graph.
+Hindsight's LLM extracts entities from the cleaned body during `retain()`, producing a clean entity graph without any pre-seeding from the ingestion pipeline.
 
 ### Why a library, not a Worker
 
@@ -422,9 +419,9 @@ A single Notion Worker that bridges Short-Term Memory → Hindsight Cloud. The o
 - **Schedule:** 5-minute cron (or `continuous` if we want lower latency for the demo).
 - **Query:** Short-Term Memory rows where `Status = pending`. Paginate; cap batch at ~50 per run.
 - **For each row:**
-  1. Read row properties: cleaned page body, `ID`, `Data Type`, `Source`, `Person Source`, `Created time`, `Entities` (JSON), `verified:true` if tagged.
+  1. Read row properties: cleaned page body, `ID`, `Data Type`, `Source`, `Person Source`, `Created time`, `verified:true` if tagged.
   2. Build the tag set from row properties (see "Tagging strategy" below).
-  3. Call Hindsight `retain(bank_id="optemization-cerebro", content=<cleaned body>, document_id=<row id>, tags=<tag set>, context=<Data Type>, timestamp=<Created time>, entities=<from Entities property>)` with `async: true` so retain runs in Hindsight's background queue.
+  3. Call Hindsight `retain(bank_id="optemization-cerebro", content=<cleaned body>, document_id=<row id>, tags=<tag set>, context=<Data Type>, timestamp=<Created time>)` with `async: true` so retain runs in Hindsight's background queue. Entity extraction is delegated to Hindsight's LLM.
   4. On success, flip the row's `Status` to `indexed`.
   5. On failure, flip to `failed` and record the error — retry `failed` rows on a slower schedule.
 - **Idempotency:** `document_id` is the row's Notion page ID. Re-running the Indexer over an already-indexed row is a no-op upsert on Hindsight's side; the Indexer's query filter (`Status = pending` or `failed`) skips them by default.
@@ -579,12 +576,12 @@ Internals:
 
 ### Must ship (demo-critical)
 
-- Short-Term Memory DB (already created) — extend Source + Data Type options, confirm `Status` select works (`pending` / `indexed` / `distilled` / `failed`), add `Entities` property.
+- Short-Term Memory DB (already created) — extend Source + Data Type options, confirm `Status` select works (`pending` / `indexed` / `distilled` / `failed`).
 - **Glossary DB** with ~15 seed entries (team members, AIVC, RC, key clients, common acronyms).
 - **Shared cleaning library** (`clean(content, glossary)`) — TypeScript module imported by source workers.
 - Hindsight Cloud bank `optemization-cerebro` configured with the JSON above. Mental models populated and refreshing.
 - **3 source workers running for real on Optemization's data:** Slack (already in flight) + Granola or Circleback (one meeting source) + Notion-Docs (watching [the Optemization Docs DB](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7)). Each calls the cleaning library and writes to Short-Term Memory only.
-- **Hindsight Indexer Worker** running on a 5-min cron, polling Short-Term Memory `Status: pending`, calling Hindsight `retain()` with cleaned body + entities + tags, marking `Status: indexed`.
+- **Hindsight Indexer Worker** running on a 5-min cron, polling Short-Term Memory `Status: pending`, calling Hindsight `retain()` with cleaned body + tags, marking `Status: indexed`.
 - **Cerebro Sync Worker** subscribed to Hindsight webhooks, writing into 8 Long-Term Memory DBs (the 6 original MVP + Objectives + Metrics).
 - Ask Cerebro Custom Agent with `askCerebro` Worker tool.
 - **Both Tavus and ElevenLabs surfaces working**, hitting the same `/api/ask`.
@@ -787,7 +784,7 @@ Defer until V1.5 traction is clear.
 | Short-Term Memory | The raw-but-cleaned-text Notion database every source worker writes to. Workspace-level. [Already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d). The canonical raw store. |
 | Long-Term Memory | The distilled output DBs as a group. 13 DBs total; 8 of those ship in V1 (the 6 original MVP + Objectives + Metrics). |
 | Glossary DB | The Notion DB of aliases ↔ canonical terms ↔ entity types. Read by the shared cleaning library. MUST-ship for V1 with ~15 seed entries. |
-| Cleaning library | Shared TypeScript module imported by every source worker. Exposes `clean(content, glossary)` returning `{ cleanedText, entities }`. Lives in the workers codebase. |
+| Cleaning library | Shared TypeScript module imported by every source worker. Exposes `clean(content, glossary)` returning a normalized `string` (alias → canonical term substitution only; no entity extraction). Lives in the workers codebase. |
 | Hindsight | [hindsight.vectorize.io](https://hindsight.vectorize.io) — the biomimetic memory system we use as the memory engine. Open-source on [GitHub](https://github.com/vectorize-io/hindsight); V1 uses Hindsight Cloud (managed). |
 | Bank | A Hindsight memory bank. V1 uses one: `optemization-cerebro`. |
 | Source Worker | One of the six Notion Workers (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) that pulls from an external API, parses it, cleans via the shared library, and writes to Short-Term Memory. Doesn't talk to Hindsight. |

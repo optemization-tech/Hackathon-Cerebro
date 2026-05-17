@@ -5,7 +5,7 @@ import { j } from "@notionhq/workers/schema-builder";
 import * as Schema from "@notionhq/workers/schema";
 import { WebClient } from "@slack/web-api";
 import { clean, loadGlossary } from "./cleaning";
-import type { Entity, GlossaryEntry } from "./cleaning";
+import type { GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
 export default worker;
@@ -63,7 +63,6 @@ function uuidv5(name: string, namespace: string): string {
 
 type SlackMessageInput = {
 	text: string;
-	entities?: Entity[];
 	teamId: string | null;
 	userId: string | null;
 	userName: string;
@@ -203,13 +202,11 @@ async function upsertSlackMessage(
 		}
 	}
 
-	const entities = msg.entities ?? [];
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: title } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Slack message" } },
 		Status: { select: { name: "pending" } },
-		Entities: { rich_text: [{ type: "text", text: { content: JSON.stringify(entities) } }] },
 	};
 	if (matchedNotionUserId) {
 		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
@@ -434,9 +431,7 @@ async function pullSlackHistory(
 			: { displayName: "unknown", realName: null, email: null };
 
 		const normalizedSlack = await cleanSlackText(msg.text ?? "", getUserInfo);
-		const cleaned = clean(normalizedSlack, glossary);
-		const cleanedText = cleaned.cleanedText;
-		const cleanedEntities = cleaned.entities;
+		const cleanedText = clean(normalizedSlack, glossary);
 
 		let permalink: string | null = null;
 		if (options.fetchPermalinks) {
@@ -456,7 +451,6 @@ async function pullSlackHistory(
 				notion,
 				{
 					text: cleanedText,
-					entities: cleanedEntities,
 					teamId,
 					userId: slackUserId,
 					userName: userInfo.displayName,
