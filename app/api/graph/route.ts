@@ -10,7 +10,7 @@ export async function GET(): Promise<Response> {
   try {
     const env = loadEnv();
     const apiUrl = env.HINDSIGHT_API_URL ?? "https://api.hindsight.vectorize.io";
-    const apiKey = env.HINDSIGHT_API_KEY;
+    const apiKey = env.HINDSIGHT_API_KEY ?? process.env.HINDSIGHT_TOKEN;
     const ns = env.HINDSIGHT_NAMESPACE ?? "default";
     const bankId = env.HINDSIGHT_BANK_ID ?? "Cerebro";
 
