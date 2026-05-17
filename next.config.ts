@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  serverExternalPackages: ["@notionhq/client", "@anthropic-ai/sdk"],
   async rewrites() {
     return [
       { source: "/", destination: "/cerebro.html" },
