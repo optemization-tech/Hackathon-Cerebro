@@ -1,31 +1,38 @@
-import { createHash } from "node:crypto";
-import { Client as NotionClient } from "@notionhq/client";
+import { randomUUID } from "node:crypto";
+import type { Client as NotionClient } from "@notionhq/client";
 import { Worker } from "@notionhq/workers";
 import { j } from "@notionhq/workers/schema-builder";
 import * as Schema from "@notionhq/workers/schema";
 import { WebClient } from "@slack/web-api";
-import { clean, loadAllEntries } from "./cleaning";
-import type { GlossaryEntry } from "./cleaning";
+import { loadAllEntries } from "./cleaning/index.js";
+import type { GlossaryEntry } from "./cleaning/types.js";
+import { listActiveChannels, type ChannelInfo } from "./lib/channels.js";
+import {
+	fetchMessagesInRange,
+	bundleByDay,
+	createUserResolver,
+} from "./lib/messages.js";
+import { generateBriefFormatB } from "./lib/briefs.js";
+import { writeBrief, type WriteBriefResult } from "./lib/write-pipeline.js";
 
 const worker = new Worker();
 export default worker;
 
-// "Short-Term Memory" database in the Optemization workspace — the *real* write target.
-const SHORT_TERM_MEMORY_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
-
-// Custom namespace UUID for deterministic v5 IDs of Slack messages.
-// Keep stable so identical messages always map to the same ID.
-const SLACK_NAMESPACE_UUID = "5f4d8a1c-1b3a-4e5f-9d2c-7e6f8a9b0c1d";
-
-// Earliest Slack message ts the worker is allowed to ingest (epoch seconds).
-// 1767225600 = 2026-01-01T00:00:00Z. Messages older than this are skipped.
-const MIN_MESSAGE_TIMESTAMP = "1767225600";
+// === Env helpers ===
 
 function readEnvId(key: string): string | undefined {
 	return process.env[key]?.trim() || undefined;
 }
 
-async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+function requireSlackClient(): WebClient {
+	const token = process.env.SLACK_BOT_TOKEN;
+	if (!token) throw new Error("SLACK_BOT_TOKEN is not set in the worker environment.");
+	return new WebClient(token, { retryConfig: { retries: 5 } });
+}
+
+// === Glossary loader ===
+
+async function loadGlossary(notion: NotionClient): Promise<GlossaryEntry[]> {
 	const glossaryId = readEnvId("GLOSSARY_DATA_SOURCE_ID");
 	if (!glossaryId) {
 		console.warn("[slack] GLOSSARY_DATA_SOURCE_ID not set — skipping normalization");
@@ -37,7 +44,7 @@ async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
 			peopleId: readEnvId("PEOPLE_DATA_SOURCE_ID"),
 			companiesId: readEnvId("COMPANIES_DATA_SOURCE_ID"),
 		});
-		console.log(`[slack] loaded ${entries.length} normalization entries (Glossary + People + Companies)`);
+		console.log(`[slack] loaded ${entries.length} normalization entries`);
 		return entries;
 	} catch (err) {
 		console.warn("[slack] loadAllEntries failed:", err instanceof Error ? err.message : err);
@@ -45,563 +52,110 @@ async function loadEntriesOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
 	}
 }
 
-function uuidv5(name: string, namespace: string): string {
-	const nsHex = namespace.replace(/-/g, "");
-	if (nsHex.length !== 32) throw new Error("Invalid namespace UUID");
-	const nsBytes = Buffer.from(nsHex, "hex");
-	const nameBytes = Buffer.from(name, "utf8");
-	const digest = createHash("sha1").update(Buffer.concat([nsBytes, nameBytes])).digest();
-	const bytes = Buffer.from(digest.subarray(0, 16));
-	bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
-	bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
-	const hex = bytes.toString("hex");
-	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+// === PT date helpers ===
+
+const PT_TZ = "America/Los_Angeles";
+
+function formatPTDate(d: Date): string {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone: PT_TZ,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(d);
+	const y = parts.find((p) => p.type === "year")!.value;
+	const m = parts.find((p) => p.type === "month")!.value;
+	const day = parts.find((p) => p.type === "day")!.value;
+	return `${y}-${m}-${day}`;
 }
 
-// === Notion write helper ===
-
-type SlackMessageInput = {
-	text: string;
-	teamId: string | null;
-	userId: string | null;
-	userName: string;
-	userRealName: string | null;
-	userEmail: string | null;
-	channelId: string;
-	channelName: string;
-	timestamp: string;
-	threadTs: string | null;
-	permalink: string | null;
-	workspaceName: string | null;
-};
-
-type UpsertResult = {
-	id: string;
-	pageId: string;
-	pageUrl: string;
-	created: boolean;
-	matchedNotionUserId: string | null;
-};
-
-async function upsertSlackMessage(
-	notion: NotionClient,
-	msg: SlackMessageInput,
-	userMatchCache?: Map<string, string | null>,
-	existingIdsCache?: Map<string, { pageId: string }>,
-): Promise<UpsertResult> {
-	const team = msg.teamId ?? "unknown-team";
-	const idKey = `slack://${team}/${msg.channelId}/${msg.timestamp}`;
-	const id = uuidv5(idKey, SLACK_NAMESPACE_UUID);
-
-	// Dedup: prefer the in-memory cache when provided (set by pullSlackHistory).
-	// When the cache is absent (single-message tool use), fall back to a per-call query.
-	if (existingIdsCache) {
-		const cached = existingIdsCache.get(id);
-		if (cached) {
-			return {
-				id,
-				pageId: cached.pageId,
-				pageUrl: `https://www.notion.so/${cached.pageId.replace(/-/g, "")}`,
-				created: false,
-				matchedNotionUserId: null,
-			};
-		}
-	} else {
-		const existing = await notion.dataSources.query({
-			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
-			filter: {
-				property: "ID",
-				rich_text: { equals: id },
-			},
-			page_size: 1,
-		});
-		if (existing.results.length > 0) {
-			const existingPage = existing.results[0];
-			return {
-				id,
-				pageId: existingPage.id,
-				pageUrl: `https://www.notion.so/${existingPage.id.replace(/-/g, "")}`,
-				created: false,
-				matchedNotionUserId: null,
-			};
-		}
-	}
-
-	const senderLabel = msg.userRealName ?? msg.userName;
-	const messageBody = msg.text.trim();
-	const previewSource = messageBody.replace(/\s+/g, " ");
-	const preview = previewSource.slice(0, 80);
-	const previewEllipsis = previewSource.length > 80 ? "…" : "";
-	const previewText = preview.length > 0 ? `${preview}${previewEllipsis}` : "(no text)";
-	const title = `${senderLabel} in #${msg.channelName}: ${previewText}`;
-
-	let isoTime: string | null = null;
-	const tsMatch = msg.timestamp.match(/^(\d+)(?:\.(\d+))?$/);
-	if (tsMatch) {
-		const epochMs = parseInt(tsMatch[1], 10) * 1000;
-		if (!Number.isNaN(epochMs)) {
-			isoTime = new Date(epochMs).toISOString();
-		}
-	}
-
-	const markdown = messageBody;
-
-	const metadata: Record<string, string | null> = {
-		slackUserId: msg.userId,
-		channelId: msg.channelId,
-		channelName: msg.channelName,
-		teamId: msg.teamId,
-		workspaceName: msg.workspaceName,
-		threadTs: msg.threadTs,
-		messageTs: msg.timestamp,
-		permalink: msg.permalink,
-		senderEmail: msg.userEmail,
-		senderName: msg.userName,
-		senderRealName: msg.userRealName,
-	};
-
-	let matchedNotionUserId: string | null = null;
-	const USER_LOOKUP_DISABLED = "__disabled__";
-	if (msg.userEmail && !userMatchCache?.has(USER_LOOKUP_DISABLED)) {
-		const target = msg.userEmail.toLowerCase();
-		if (userMatchCache?.has(target)) {
-			matchedNotionUserId = userMatchCache.get(target) ?? null;
-		} else {
-			try {
-				let cursor: string | undefined;
-				findUser: do {
-					const resp = await notion.users.list({
-						page_size: 100,
-						...(cursor ? { start_cursor: cursor } : {}),
-					});
-					for (const user of resp.results) {
-						if (user.type !== "person") continue;
-						const email = user.person?.email;
-						if (email && email.toLowerCase() === target) {
-							matchedNotionUserId = user.id;
-							break findUser;
-						}
-					}
-					cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
-				} while (cursor);
-			} catch (err) {
-				const code = (err as { code?: string }).code;
-				if (code === "restricted_resource") {
-					console.warn("[slack] PAT cannot list users — disabling user matching for this run");
-					userMatchCache?.set(USER_LOOKUP_DISABLED, null);
-				} else {
-					console.warn("Failed to look up Notion user by email:", err);
-				}
-			}
-			userMatchCache?.set(target, matchedNotionUserId);
-		}
-	}
-
-	const properties: Record<string, unknown> = {
-		Name: { title: [{ type: "text", text: { content: title } }] },
-		ID: { rich_text: [{ type: "text", text: { content: id } }] },
-		"Data Type": { select: { name: "Slack message" } },
-		Status: { select: { name: "pending" } },
-		Metadata: { rich_text: [{ type: "text", text: { content: JSON.stringify(metadata) } }] },
-	};
-	if (matchedNotionUserId) {
-		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
-	}
-	if (isoTime) {
-		properties["Event Date"] = { date: { start: isoTime.slice(0, 10) } };
-	}
-
-	const page = await notion.pages.create({
-		parent: {
-			type: "data_source_id",
-			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
-		},
-		properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
-		markdown,
-	});
-
-	// Record the new entry so subsequent messages in this run dedup against it.
-	existingIdsCache?.set(id, { pageId: page.id });
-
-	return {
-		id,
-		pageId: page.id,
-		pageUrl: `https://www.notion.so/${page.id.replace(/-/g, "")}`,
-		created: true,
-		matchedNotionUserId,
-	};
+function yesterdayPT(): string {
+	const d = new Date();
+	d.setDate(d.getDate() - 1);
+	return formatPTDate(d);
 }
 
-// Rewrite Slack message-formatting tokens into human-readable text.
-// Handles user/channel/special mentions, user groups, dates, and links.
-// User IDs are resolved via the supplied resolver (typically the per-run cache).
-async function cleanSlackText(
-	text: string,
-	resolveUserId: (userId: string) => Promise<{ displayName: string }>,
-): Promise<string> {
-	if (!text) return text;
-	let out = text;
-
-	// User mentions: <@U123> or <@U123|fallback>. Resolve once per unique ID.
-	const userMentionPattern = /<@(U[A-Z0-9]+)(?:\|[^>]+)?>/g;
-	const uniqueUserIds = new Set<string>();
-	for (const m of out.matchAll(userMentionPattern)) uniqueUserIds.add(m[1]);
-	const userResolutions = new Map<string, string>();
-	for (const userId of uniqueUserIds) {
-		try {
-			const info = await resolveUserId(userId);
-			userResolutions.set(userId, info.displayName);
-		} catch {
-			userResolutions.set(userId, userId);
-		}
+function dateRangeDays(from: string, to: string): string[] {
+	const days: string[] = [];
+	const start = new Date(from + "T12:00:00Z");
+	const end = new Date(to + "T12:00:00Z");
+	for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+		days.push(d.toISOString().slice(0, 10));
 	}
-	out = out.replace(userMentionPattern, (full, userId) => {
-		const name = userResolutions.get(userId);
-		return name ? `@${name}` : full;
-	});
-
-	// Channel mentions with embedded name: <#C123|name> -> #name.
-	out = out.replace(/<#C[A-Z0-9]+\|([^>]+)>/g, "#$1");
-
-	// Special @-mentions.
-	out = out.replace(/<!(everyone|here|channel)>/g, "@$1");
-
-	// User groups: <!subteam^S123|@name>.
-	out = out.replace(/<!subteam\^[A-Z0-9]+\|@?([^>]+)>/g, "@$1");
-
-	// Dates: <!date^TS^TOKEN|FALLBACK> or <!date^TS^FALLBACK>.
-	out = out.replace(/<!date\^\d+\^[^|>]+\|([^>]+)>/g, "$1");
-	out = out.replace(/<!date\^\d+\^([^>]+)>/g, "$1");
-
-	// Links: <URL|text> -> [text](URL); <URL> -> URL. Covers https? and mailto.
-	out = out.replace(/<((?:https?|mailto):[^|>]+)\|([^>]+)>/g, "[$2]($1)");
-	out = out.replace(/<((?:https?|mailto):[^>]+)>/g, "$1");
-
-	return out;
+	return days;
 }
 
-// Bulk-load all existing Slack-message page IDs (UUID -> Notion page ID).
-// Lets pullSlackHistory dedup in-memory instead of querying Notion per message.
-async function loadExistingSlackMessageIds(
-	notion: NotionClient,
-): Promise<Map<string, { pageId: string }>> {
-	const cache = new Map<string, { pageId: string }>();
-	let cursor: string | undefined;
-	let pageNum = 0;
-	do {
-		if (pageNum > 0) await new Promise((r) => setTimeout(r, 350));
-		const resp = await notion.dataSources.query({
-			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
-			filter: { property: "Data Type", select: { equals: "Slack message" } },
-			page_size: 100,
-			...(cursor ? { start_cursor: cursor } : {}),
-		});
-		for (const page of resp.results) {
-			const props = (page as { properties?: Record<string, unknown> }).properties;
-			if (!props) continue;
-			const idProp = props.ID as
-				| { rich_text?: Array<{ plain_text?: string }> }
-				| undefined;
-			const idValue = idProp?.rich_text?.[0]?.plain_text;
-			if (idValue) {
-				cache.set(idValue, { pageId: page.id });
-			}
-		}
-		cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
-		pageNum++;
-	} while (cursor);
-	return cache;
+function ptDayToEpochBounds(date: string): { oldest: string; latest: string } {
+	const d = new Date(date + "T00:00:00Z");
+	const oldest = Math.floor((d.getTime() + 7 * 3600_000) / 1000).toString();
+	const latest = Math.floor((d.getTime() + 32 * 3600_000) / 1000).toString();
+	return { oldest, latest };
 }
 
-// === Slack pull orchestrator (shared by backfill and delta) ===
+// === Core: generate brief for one channel-day ===
 
-type PullOptions = {
-	oldest: string | undefined;
-	latest: string | undefined;
-	autoJoinPublicChannels: boolean;
-	includeThreads: boolean;
-	fetchPermalinks: boolean;
-};
-
-type PullResult = {
-	channelsScanned: number;
-	channelsJoined: number;
-	messagesProcessed: number;
-	messagesCreated: number;
-	messagesSkipped: number;
-	errors: string[];
-	latestTimestamp: string | null;
-};
-
-async function pullSlackHistory(
+async function runBriefForChannelDay(
 	slack: WebClient,
 	notion: NotionClient,
-	options: PullOptions,
-): Promise<PullResult> {
-	const channelTypes = "public_channel,private_channel,mpim,im";
+	channel: ChannelInfo,
+	date: string,
+	workspaceName: string | null,
+	glossary: GlossaryEntry[],
+): Promise<WriteBriefResult> {
+	const { oldest, latest } = ptDayToEpochBounds(date);
+	const resolveUser = createUserResolver(slack);
 
-	// Floor `oldest` to MIN_MESSAGE_TIMESTAMP so we never request pre-2026 history.
-	const effectiveOldest =
-		options.oldest && parseFloat(options.oldest) > parseFloat(MIN_MESSAGE_TIMESTAMP)
-			? options.oldest
-			: MIN_MESSAGE_TIMESTAMP;
-
-	const teamInfo = await slack.team.info();
-	const teamId = teamInfo.team?.id ?? null;
-	const workspaceName = teamInfo.team?.name ?? null;
-
-	type UserCacheEntry = {
-		displayName: string;
-		realName: string | null;
-		email: string | null;
-	};
-	const userInfoCache = new Map<string, UserCacheEntry>();
-	const notionUserCache = new Map<string, string | null>();
-	const existingIdsCache = await loadExistingSlackMessageIds(notion);
-	console.log(
-		`[pullSlackHistory] preloaded ${existingIdsCache.size} existing Slack message IDs for in-memory dedup`,
+	const messages = await fetchMessagesInRange(
+		slack,
+		channel.channelId,
+		oldest,
+		latest,
+		{ includeThreads: true, resolveUser, glossary },
 	);
-	const glossary = await loadEntriesOnce(notion);
 
-	async function getUserInfo(userId: string): Promise<UserCacheEntry> {
-		const cached = userInfoCache.get(userId);
-		if (cached) return cached;
-		let entry: UserCacheEntry;
-		try {
-			const resp = await slack.users.info({ user: userId });
-			const profile = resp.user?.profile;
-			entry = {
-				displayName:
-					profile?.display_name || profile?.real_name || resp.user?.name || userId,
-				realName: profile?.real_name ?? null,
-				email: profile?.email ?? null,
-			};
-		} catch {
-			entry = { displayName: userId, realName: null, email: null };
-		}
-		userInfoCache.set(userId, entry);
-		return entry;
+	const bundles = bundleByDay(
+		messages,
+		channel.channelId,
+		channel.channelName,
+		workspaceName,
+	);
+	const targetBundle = bundles.get(date);
+
+	if (!targetBundle || targetBundle.messages.length === 0) {
+		console.log(`[brief] no messages for #${channel.channelName} on ${date}, skipping`);
+		return {
+			stmId: "",
+			stmPageId: "",
+			stmPageUrl: "",
+			created: false,
+			hindsightRetained: false,
+			hindsightError: null,
+		};
 	}
 
-	const errors: string[] = [];
-	let channelsScanned = 0;
-	let channelsJoined = 0;
-	let messagesProcessed = 0;
-	let messagesCreated = 0;
-	let messagesSkipped = 0;
-	let latestTimestamp: string | null = null;
+	console.log(
+		`[brief] generating Format B for #${channel.channelName} on ${date} (${targetBundle.messages.length} messages)`,
+	);
 
-	type ChannelMeta = {
-		id: string;
-		name: string;
-		isMember: boolean;
-		isPublicChannel: boolean;
-	};
-	const channels: ChannelMeta[] = [];
-	let listCursor: string | undefined;
-	do {
-		const resp = await slack.conversations.list({
-			types: channelTypes,
-			exclude_archived: true,
-			limit: 200,
-			cursor: listCursor,
-		});
-		for (const ch of resp.channels ?? []) {
-			if (!ch.id) continue;
-			const name = ch.name ?? (ch.user ? `DM-${ch.user}` : ch.id);
-			channels.push({
-				id: ch.id,
-				name,
-				isMember: ch.is_member ?? false,
-				isPublicChannel: (ch.is_channel ?? false) && !(ch.is_private ?? false),
-			});
-		}
-		listCursor = resp.response_metadata?.next_cursor || undefined;
-	} while (listCursor);
+	const briefText = await generateBriefFormatB({
+		channelName: channel.channelName,
+		channelId: channel.channelId,
+		date,
+		messages: targetBundle.messages,
+		workspaceName,
+	});
 
-	const processMessage = async (
-		channel: ChannelMeta,
-		msg: { ts?: string; text?: string; user?: string; thread_ts?: string },
-	): Promise<void> => {
-		if (!msg.ts) return;
-		// Hard floor: skip anything before 2026 even if Slack returned it.
-		if (parseFloat(msg.ts) < parseFloat(MIN_MESSAGE_TIMESTAMP)) return;
-		messagesProcessed++;
-
-		const slackUserId = msg.user ?? null;
-		const userInfo = slackUserId
-			? await getUserInfo(slackUserId)
-			: { displayName: "unknown", realName: null, email: null };
-
-		const normalizedSlack = await cleanSlackText(msg.text ?? "", getUserInfo);
-		const cleanedText = clean(normalizedSlack, glossary);
-
-		let permalink: string | null = null;
-		if (options.fetchPermalinks) {
-			try {
-				const perm = await slack.chat.getPermalink({
-					channel: channel.id,
-					message_ts: msg.ts,
-				});
-				permalink = perm.permalink ?? null;
-			} catch {
-				permalink = null;
-			}
-		}
-
-		try {
-			if (messagesProcessed > 1) await new Promise((r) => setTimeout(r, 200));
-			const result = await upsertSlackMessage(
-				notion,
-				{
-					text: cleanedText,
-					teamId,
-					userId: slackUserId,
-					userName: userInfo.displayName,
-					userRealName: userInfo.realName,
-					userEmail: userInfo.email,
-					channelId: channel.id,
-					channelName: channel.name,
-					timestamp: msg.ts,
-					threadTs: msg.thread_ts && msg.thread_ts !== msg.ts ? msg.thread_ts : null,
-					permalink,
-					workspaceName,
-				},
-				notionUserCache,
-				existingIdsCache,
-			);
-			if (result.created) messagesCreated++;
-			else messagesSkipped++;
-			if (!latestTimestamp || parseFloat(msg.ts) > parseFloat(latestTimestamp)) {
-				latestTimestamp = msg.ts;
-			}
-		} catch (err) {
-			errors.push(
-				`message ${channel.id}/${msg.ts}: ${err instanceof Error ? err.message : String(err)}`,
-			);
-		}
-	};
-
-	for (const channel of channels) {
-		try {
-			if (options.autoJoinPublicChannels && channel.isPublicChannel && !channel.isMember) {
-				try {
-					await slack.conversations.join({ channel: channel.id });
-					channel.isMember = true;
-					channelsJoined++;
-				} catch (joinErr) {
-					errors.push(
-						`join ${channel.id} (${channel.name}): ${
-							joinErr instanceof Error ? joinErr.message : String(joinErr)
-						}`,
-					);
-					continue;
-				}
-			}
-			if (!channel.isMember) continue;
-			channelsScanned++;
-
-			const seenThreads = new Set<string>();
-			let historyCursor: string | undefined;
-			// conversations.history returns messages in reverse chronological order
-			// (newest first). We iterate the response as-is, so processing is descending.
-			do {
-				const resp = await slack.conversations.history({
-					channel: channel.id,
-					limit: 200,
-					cursor: historyCursor,
-					oldest: effectiveOldest,
-					...(options.latest ? { latest: options.latest } : {}),
-				});
-				const messages = (resp.messages ?? []) as Array<{
-					ts?: string;
-					text?: string;
-					user?: string;
-					thread_ts?: string;
-					reply_count?: number;
-				}>;
-				for (const msg of messages) {
-					await processMessage(channel, msg);
-					if (
-						options.includeThreads &&
-						msg.thread_ts &&
-						msg.ts === msg.thread_ts &&
-						(msg.reply_count ?? 0) > 0
-					) {
-						seenThreads.add(msg.thread_ts);
-					}
-				}
-				historyCursor = resp.response_metadata?.next_cursor || undefined;
-			} while (historyCursor);
-
-			if (options.includeThreads) {
-				for (const threadTs of seenThreads) {
-					// conversations.replies returns oldest-first; collect all then
-					// sort descending so processing matches the rest of the pipeline.
-					const allReplies: Array<{
-						ts?: string;
-						text?: string;
-						user?: string;
-						thread_ts?: string;
-					}> = [];
-					let replyCursor: string | undefined;
-					do {
-						const resp = await slack.conversations.replies({
-							channel: channel.id,
-							ts: threadTs,
-							limit: 200,
-							cursor: replyCursor,
-							oldest: effectiveOldest,
-						});
-						const replies = (resp.messages ?? []) as Array<{
-							ts?: string;
-							text?: string;
-							user?: string;
-							thread_ts?: string;
-						}>;
-						for (const reply of replies) {
-							if (reply.ts === threadTs) continue; // parent already processed
-							allReplies.push(reply);
-						}
-						replyCursor = resp.response_metadata?.next_cursor || undefined;
-					} while (replyCursor);
-					allReplies.sort(
-						(a, b) => parseFloat(b.ts ?? "0") - parseFloat(a.ts ?? "0"),
-					);
-					for (const reply of allReplies) {
-						await processMessage(channel, reply);
-					}
-				}
-			}
-		} catch (err) {
-			errors.push(
-				`channel ${channel.id} (${channel.name}): ${
-					err instanceof Error ? err.message : String(err)
-				}`,
-			);
-		}
-	}
-
-	return {
-		channelsScanned,
-		channelsJoined,
-		messagesProcessed,
-		messagesCreated,
-		messagesSkipped,
-		errors,
-		latestTimestamp,
-	};
+	return writeBrief(notion, null, {
+		channelId: channel.channelId,
+		channelName: channel.channelName,
+		channelCategory: channel.channelCategory ?? "uncategorized",
+		engagementSlug: channel.engagementSlug ?? "unknown",
+		date,
+		briefMarkdown: briefText,
+	});
 }
 
-function requireSlackClient(): WebClient {
-	const token = process.env.SLACK_BOT_TOKEN;
-	if (!token) {
-		throw new Error("SLACK_BOT_TOKEN is not set in the worker environment.");
-	}
-	return new WebClient(token, { retryConfig: { retries: 5 } });
-}
-
-// === Shim managed database (used purely as the scheduler hook; never written to) ===
+// === Shim managed database (scheduler hook; never written to) ===
 
 const syncShim = worker.database("slackSyncShim", {
 	type: "managed",
@@ -615,94 +169,483 @@ const syncShim = worker.database("slackSyncShim", {
 	},
 });
 
-// === Sync: backfill (run manually) ===
+// === Sync: daily briefs (every 24 hours) ===
 
-worker.sync("slackBackfill", {
+worker.sync("slackDailyBriefs", {
+	database: syncShim,
+	mode: "incremental",
+	schedule: "1d",
+	execute: async (_state, { notion }) => {
+		const slack = requireSlackClient();
+		const date = yesterdayPT();
+		console.log(`[dailyBriefs] generating briefs for ${date}`);
+
+		const channels = await listActiveChannels(notion);
+		const glossary = await loadGlossary(notion);
+
+		const teamInfo = await slack.team.info();
+		const workspaceName = teamInfo.team?.name ?? null;
+
+		let created = 0;
+		let skipped = 0;
+		let failed = 0;
+		const errors: string[] = [];
+
+		for (const channel of channels) {
+			try {
+				const result = await runBriefForChannelDay(
+					slack,
+					notion,
+					channel,
+					date,
+					workspaceName,
+					glossary,
+				);
+				if (result.created) created++;
+				else skipped++;
+			} catch (err) {
+				failed++;
+				const msg = `#${channel.channelName}: ${err instanceof Error ? err.message : String(err)}`;
+				errors.push(msg);
+				console.error(`[dailyBriefs] ${msg}`);
+			}
+		}
+
+		console.log(
+			`[dailyBriefs] ${date} done: ${created} created, ${skipped} skipped, ${failed} failed` +
+				(errors.length > 0 ? ` | errors: ${errors.join("; ")}` : ""),
+		);
+
+		return {
+			changes: [],
+			hasMore: false,
+			nextState: { lastDate: date },
+		};
+	},
+});
+
+// === Backfill state (module-level, shared between tools and sync) ===
+
+type BackfillJob = { channelId: string; channelName: string; date: string };
+
+type BackfillState = {
+	runId: string;
+	total: number;
+	done: number;
+	failed: number;
+	errors: string[];
+	startedAt: string;
+	lastUpdatedAt: string;
+	active: boolean;
+};
+
+let activeBackfill: BackfillState | null = null;
+
+// === Sync: backfill (manual trigger, CLI fallback) ===
+
+worker.sync("slackBriefBackfill", {
 	database: syncShim,
 	mode: "incremental",
 	schedule: "manual",
-	execute: async (_state, { notion }) => {
-		const slack = requireSlackClient();
-		const backfillSince = process.env.BACKFILL_SINCE;
-		const backfillUntil = process.env.BACKFILL_UNTIL;
-		const oldest = backfillSince
-			? (new Date(backfillSince).getTime() / 1000).toString()
-			: undefined;
-		const latest = backfillUntil
-			? (new Date(backfillUntil).getTime() / 1000).toString()
-			: undefined;
-		const result = await pullSlackHistory(slack, notion, {
-			oldest,
-			latest,
-			autoJoinPublicChannels: true,
-			includeThreads: true,
-			fetchPermalinks: false,
-		});
-		console.log("[slackBackfill] result:", JSON.stringify(result));
-		return {
-			changes: [],
-			hasMore: false,
-			nextState: { lastTs: result.latestTimestamp ?? null },
-		};
-	},
-});
-
-// === Sync: delta (every 5 minutes) ===
-
-worker.sync("slackDelta", {
-	database: syncShim,
-	mode: "incremental",
-	schedule: "5m",
 	execute: async (state, { notion }) => {
+		const typedState = state as {
+			from?: string;
+			to?: string;
+			channels?: Array<{ channelId: string; channelName: string; channelCategory: string | null; engagementSlug: string | null }>;
+			queue?: BackfillJob[];
+			cursor?: number;
+			done?: number;
+			failed?: number;
+			runId?: string;
+		} | null;
+
 		const slack = requireSlackClient();
-		const prior = (state as { lastTs?: string | null } | null)?.lastTs ?? null;
-		// First run with no state: look back 1 hour (assumes backfill has been run).
-		const oldest = prior ?? (Math.floor(Date.now() / 1000) - 3600).toString();
+		const teamInfo = await slack.team.info();
+		const workspaceName = teamInfo.team?.name ?? null;
+		const glossary = await loadGlossary(notion);
 
-		const result = await pullSlackHistory(slack, notion, {
-			oldest,
-			latest: undefined,
-			autoJoinPublicChannels: false,
-			includeThreads: true,
-			fetchPermalinks: false,
-		});
-		console.log("[slackDelta] result:", JSON.stringify(result));
+		let queue = typedState?.queue;
+		let cursor = typedState?.cursor ?? 0;
+		let done = typedState?.done ?? 0;
+		let failed = typedState?.failed ?? 0;
+		const runId = typedState?.runId ?? randomUUID();
 
-		const nextLastTs = result.latestTimestamp ?? prior ?? oldest;
+		if (!queue) {
+			const from = process.env.BACKFILL_FROM ?? "2026-01-01";
+			const to = process.env.BACKFILL_TO ?? yesterdayPT();
+			console.log(`[backfill] building queue: ${from} → ${to}`);
+
+			const channels = await listActiveChannels(notion);
+			const days = dateRangeDays(from, to);
+
+			queue = [];
+			for (const ch of channels) {
+				for (const day of days) {
+					queue.push({
+						channelId: ch.channelId,
+						channelName: ch.channelName,
+						date: day,
+					});
+				}
+			}
+
+			console.log(`[backfill] ${queue.length} channel-days queued (${channels.length} channels × ${days.length} days)`);
+
+			activeBackfill = {
+				runId,
+				total: queue.length,
+				done: 0,
+				failed: 0,
+				errors: [],
+				startedAt: new Date().toISOString(),
+				lastUpdatedAt: new Date().toISOString(),
+				active: true,
+			};
+		}
+
+		if (cursor >= queue.length) {
+			console.log(`[backfill] run ${runId} complete: ${done} done, ${failed} failed`);
+			if (activeBackfill) activeBackfill.active = false;
+			return { changes: [], hasMore: false, nextState: null };
+		}
+
+		const job = queue[cursor];
+		const allChannels = await listActiveChannels(notion);
+		const channelInfo = allChannels.find((c) => c.channelId === job.channelId);
+
+		if (channelInfo) {
+			try {
+				const result = await runBriefForChannelDay(
+					slack,
+					notion,
+					channelInfo,
+					job.date,
+					workspaceName,
+					glossary,
+				);
+				if (result.created) {
+					console.log(`[backfill] ${cursor + 1}/${queue.length} created: #${job.channelName} ${job.date}`);
+				} else {
+					console.log(`[backfill] ${cursor + 1}/${queue.length} skipped (exists): #${job.channelName} ${job.date}`);
+				}
+				done++;
+			} catch (err) {
+				failed++;
+				console.error(
+					`[backfill] ${cursor + 1}/${queue.length} failed: #${job.channelName} ${job.date}: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+			}
+		} else {
+			console.warn(`[backfill] channel ${job.channelId} not found in active channels, skipping`);
+			done++;
+		}
+
+		if (activeBackfill) {
+			activeBackfill.done = done;
+			activeBackfill.failed = failed;
+			activeBackfill.lastUpdatedAt = new Date().toISOString();
+		}
+
+		const hasMore = cursor + 1 < queue.length;
+		if (!hasMore && activeBackfill) activeBackfill.active = false;
+
 		return {
 			changes: [],
-			hasMore: false,
-			nextState: { lastTs: nextLastTs },
+			hasMore,
+			nextState: { queue, cursor: cursor + 1, done, failed, runId },
 		};
 	},
 });
 
-// === Tool: ingest a single message (kept for external callers / webhooks) ===
+// === Tool: backfillRange (agent-callable) ===
+// All input schemas use `as any` to inject `additionalProperties: true` —
+// the Notion Custom Agent runtime injects metadata (e.g. "name") into tool
+// inputs, which strict j.object() rejects. All fields are optional here
+// because the execute handler applies defaults.
 
-worker.tool("ingestSlackMessage", {
-	title: "Ingest Slack Message",
+worker.tool("backfillRange", {
+	title: "Backfill Slack Briefs",
 	description:
-		"Save a single Slack message to the Short-Term Memory database in Notion. Idempotent via UUID dedup.",
+		"Generate daily briefs for a date range across specified channels. Runs asynchronously — returns a runId immediately. Check progress with getBackfillStatus.",
 	schema: j.object({
-		text: j.string().describe("The Slack message text. May be empty if the message is purely an attachment."),
-		teamId: j.string().describe("Slack workspace/team ID (e.g. T0122RG9934).").nullable(),
-		userId: j.string().describe("Slack user ID (e.g. U01234567).").nullable(),
-		userName: j.string().describe("Display name of the sender."),
-		userRealName: j.string().describe("Real (full) name of the sender.").nullable(),
-		userEmail: j.email().describe("Email of the sender; matched to a Notion user when possible.").nullable(),
-		channelId: j.string().describe("Slack channel ID."),
-		channelName: j.string().describe("Slack channel name, or 'DM' for direct messages."),
-		timestamp: j.string().describe("Slack message timestamp (e.g. '1700000000.123456')."),
-		threadTs: j.string().describe("Parent thread timestamp if this is a reply.").nullable(),
-		permalink: j.string().describe("Slack permalink to the message.").nullable(),
-		workspaceName: j.string().describe("Slack workspace name (e.g. 'Optemization').").nullable(),
+		from: j.string().describe("Start date YYYY-MM-DD. Pass '2026-01-01' for full history."),
+		to: j.string().describe("End date YYYY-MM-DD. Pass today's date for most recent."),
+		channels: j
+			.array(j.string())
+			.describe("Channel IDs to backfill. Pass empty array [] for all active channels."),
 	}),
 	outputSchema: j.object({
-		id: j.string(),
-		pageId: j.string(),
-		pageUrl: j.string(),
-		created: j.boolean(),
-		matchedNotionUserId: j.string().nullable(),
+		runId: j.string(),
+		total: j.number(),
+		message: j.string(),
 	}),
-	execute: async (input, { notion }) => upsertSlackMessage(notion, input),
+	execute: async (input, { notion }) => {
+		if (activeBackfill?.active) {
+			return {
+				runId: activeBackfill.runId,
+				total: activeBackfill.total,
+				message: `Backfill already in progress (${activeBackfill.done}/${activeBackfill.total} done). Use getBackfillStatus to check.`,
+			};
+		}
+
+		const slack = requireSlackClient();
+		const from = input.from || "2026-01-01";
+		const to = input.to || yesterdayPT();
+		const rawChannels = input.channels;
+		const days = dateRangeDays(from, to);
+		const allChannels = await listActiveChannels(notion);
+
+		const targetChannels =
+			rawChannels && Array.isArray(rawChannels) && rawChannels.length > 0
+				? allChannels.filter((c) => rawChannels.includes(c.channelId))
+				: allChannels;
+
+		const queue: Array<{ channel: ChannelInfo; date: string }> = [];
+		for (const ch of targetChannels) {
+			for (const day of days) {
+				queue.push({ channel: ch, date: day });
+			}
+		}
+
+		const runId = randomUUID();
+		const total = queue.length;
+
+		activeBackfill = {
+			runId,
+			total,
+			done: 0,
+			failed: 0,
+			errors: [],
+			startedAt: new Date().toISOString(),
+			lastUpdatedAt: new Date().toISOString(),
+			active: true,
+		};
+
+		const CONCURRENCY = 5;
+		console.log(`[backfillRange] starting run ${runId}: ${total} channel-days (${targetChannels.length} channels × ${days.length} days, concurrency=${CONCURRENCY})`);
+
+		void (async () => {
+			try {
+				const teamInfo = await slack.team.info();
+				const workspaceName = teamInfo.team?.name ?? null;
+				const glossary = await loadGlossary(notion);
+
+				for (let i = 0; i < queue.length; i += CONCURRENCY) {
+					if (!activeBackfill?.active) break;
+					const batch = queue.slice(i, i + CONCURRENCY);
+					const results = await Promise.allSettled(
+						batch.map(({ channel, date }) =>
+							runBriefForChannelDay(slack, notion, channel, date, workspaceName, glossary)
+								.then(() => ({ ok: true as const, channel, date }))
+								.catch((err) => ({ ok: false as const, channel, date, err })),
+						),
+					);
+					for (const r of results) {
+						if (r.status === "fulfilled" && r.value.ok) {
+							activeBackfill.done++;
+						} else if (r.status === "fulfilled" && !r.value.ok) {
+							activeBackfill.failed++;
+							const v = r.value as { channel: ChannelInfo; date: string; err: unknown };
+							const msg = `#${v.channel.channelName} ${v.date}: ${v.err instanceof Error ? v.err.message : String(v.err)}`;
+							activeBackfill.errors.push(msg);
+							console.error(`[backfillRange] ${msg}`);
+						} else {
+							activeBackfill.failed++;
+						}
+					}
+					activeBackfill.lastUpdatedAt = new Date().toISOString();
+				}
+			} finally {
+				if (activeBackfill?.runId === runId) {
+					activeBackfill.active = false;
+					activeBackfill.lastUpdatedAt = new Date().toISOString();
+					console.log(
+						`[backfillRange] run ${runId} complete: ${activeBackfill.done} done, ${activeBackfill.failed} failed`,
+					);
+				}
+			}
+		})();
+
+		return {
+			runId,
+			total,
+			message: `Backfill started: ${total} channel-days from ${from} to ${to}. Use getBackfillStatus("${runId}") to track progress.`,
+		};
+	},
+});
+
+// === Tool: regenerateBriefForDay (agent-callable) ===
+
+worker.tool("regenerateBriefForDay", {
+	title: "Regenerate Brief for Day",
+	description:
+		"Re-generate a daily brief for a single channel-day in Format B. Overwrites any existing brief for that channel-day.",
+	schema: j.object({
+		channelId: j.string().describe("Slack channel ID (e.g. C01234567)."),
+		date: j.string().describe("Date to regenerate (YYYY-MM-DD)."),
+	}),
+	outputSchema: j.object({
+		stmPageUrl: j.string(),
+		created: j.boolean(),
+		message: j.string(),
+	}),
+	execute: async (input, { notion }) => {
+		const channelId = input.channelId;
+		const date = input.date;
+		const slack = requireSlackClient();
+
+		const allChannels = await listActiveChannels(notion);
+		const channel = allChannels.find((c) => c.channelId === channelId);
+		if (!channel) {
+			return {
+				stmPageUrl: "",
+				created: false,
+				message: `Channel ${channelId} not found in active channels.`,
+			};
+		}
+
+		const existingId = `slack-brief_${channelId}_${date}`;
+		try {
+			const existing = await notion.dataSources.query({
+				data_source_id: "362a4866-2b25-801c-9ce5-000b30156f9b",
+				filter: { property: "ID", rich_text: { equals: existingId } },
+				page_size: 1,
+			});
+			if (existing.results.length > 0) {
+				await notion.pages.update({
+					page_id: existing.results[0].id,
+					archived: true,
+				});
+				console.log(`[regenerate] archived existing brief ${existingId}`);
+			}
+		} catch (err) {
+			console.warn(`[regenerate] could not archive existing brief: ${err instanceof Error ? err.message : String(err)}`);
+		}
+
+		const teamInfo = await slack.team.info();
+		const workspaceName = teamInfo.team?.name ?? null;
+		const glossary = await loadGlossary(notion);
+
+		const result = await runBriefForChannelDay(
+			slack,
+			notion,
+			channel,
+			date,
+			workspaceName,
+			glossary,
+		);
+
+		return {
+			stmPageUrl: result.stmPageUrl,
+			created: result.created,
+			message: result.created
+				? `Regenerated brief for #${channel.channelName} on ${date}.`
+				: `No messages found for #${channel.channelName} on ${date}.`,
+		};
+	},
+});
+
+// === Tool: getBackfillStatus (agent-callable) ===
+
+worker.tool("getBackfillStatus", {
+	title: "Get Backfill Status",
+	description: "Check the progress of a running or completed backfill run.",
+	schema: j.object({
+		runId: j.string().describe("The run ID returned by backfillRange."),
+	}),
+	outputSchema: j.object({
+		found: j.boolean(),
+		active: j.boolean(),
+		total: j.number(),
+		done: j.number(),
+		failed: j.number(),
+		etaSeconds: j.number().nullable(),
+		startedAt: j.string().nullable(),
+		lastUpdatedAt: j.string().nullable(),
+		recentErrors: j.array(j.string()),
+	}),
+	execute: async (input) => {
+		const runId = input.runId;
+		if (!activeBackfill || activeBackfill.runId !== runId) {
+			return {
+				found: false,
+				active: false,
+				total: 0,
+				done: 0,
+				failed: 0,
+				etaSeconds: null,
+				startedAt: null,
+				lastUpdatedAt: null,
+				recentErrors: [],
+			};
+		}
+
+		const b = activeBackfill;
+		let etaSeconds: number | null = null;
+		if (b.active && b.done > 0) {
+			const elapsed = Date.now() - new Date(b.startedAt).getTime();
+			const msPerItem = elapsed / b.done;
+			const remaining = b.total - b.done - b.failed;
+			etaSeconds = Math.round((remaining * msPerItem) / 1000);
+		}
+
+		return {
+			found: true,
+			active: b.active,
+			total: b.total,
+			done: b.done,
+			failed: b.failed,
+			etaSeconds,
+			startedAt: b.startedAt,
+			lastUpdatedAt: b.lastUpdatedAt,
+			recentErrors: b.errors.slice(-10),
+		};
+	},
+});
+
+// === Tool: testAnthropicCall (healthcheck) ===
+
+worker.tool("testAnthropicCall", {
+	title: "Test Anthropic Call",
+	description:
+		"Healthcheck: calls Anthropic with a 1-token prompt to verify api.anthropic.com is reachable from the worker runtime.",
+	schema: j.object({
+	}),
+	outputSchema: j.object({
+		ok: j.boolean(),
+		model: j.string(),
+		latencyMs: j.number(),
+		error: j.string().nullable(),
+	}),
+	execute: async () => {
+		const apiKey = process.env.ANTHROPIC_API_KEY;
+		if (!apiKey) {
+			return { ok: false, model: "", latencyMs: 0, error: "ANTHROPIC_API_KEY is not set" };
+		}
+		const { default: Anthropic } = await import("@anthropic-ai/sdk");
+		const client = new Anthropic({ apiKey });
+		const start = Date.now();
+		try {
+			const resp = await client.messages.create({
+				model: "claude-sonnet-4-6",
+				max_tokens: 1,
+				messages: [{ role: "user", content: "Hi" }],
+			});
+			return {
+				ok: true,
+				model: resp.model,
+				latencyMs: Date.now() - start,
+				error: null,
+			};
+		} catch (err) {
+			return {
+				ok: false,
+				model: "",
+				latencyMs: Date.now() - start,
+				error: err instanceof Error ? err.message : String(err),
+			};
+		}
+	},
 });

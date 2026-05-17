@@ -5,7 +5,8 @@
 	"scripts": {
 		"build": "tsc",
 		"check": "tsc --noEmit",
-		"backfill": "bash backfill.sh"
+		"backfill": "bash backfill.sh",
+		"postinstall": "node scripts/patch-schema-builder.js"
 	},
 	"engines": {
 		"node": ">=22.0.0",
