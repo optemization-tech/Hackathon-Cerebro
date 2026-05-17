@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   compress: true,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   async rewrites() {
     return [

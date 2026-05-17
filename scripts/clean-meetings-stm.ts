@@ -351,8 +351,8 @@ async function main() {
 			...(cursor ? { start_cursor: cursor } : {}),
 		};
 		const res = await withRetry(
-			() => dsClient.dataSources?.query
-				? dsClient.dataSources.query(queryArgs)
+			async () => (dsClient.dataSources as any)?.query
+				? (dsClient.dataSources as any).query(queryArgs)
 				: notion.databases.query({ database_id: STM_DB_ID, filter: queryArgs.filter, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }) as unknown as { results: STMPage[]; has_more: boolean; next_cursor: string | null },
 			`query STM`,
 		);
