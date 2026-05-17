@@ -1,5 +1,6 @@
 {
   "name": "cerebro",
+  "description": "A nearly fully autonomous second brain for teams. Automatic capture, cleaning, distillation, and sense-making — built on Notion Workers SDK + Hindsight Cloud.",
   "version": "0.0.0",
   "private": true,
   "scripts": {
