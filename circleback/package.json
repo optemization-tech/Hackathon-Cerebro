@@ -4,7 +4,9 @@
 	"private": true,
 	"scripts": {
 		"build": "tsc",
-		"check": "tsc --noEmit"
+		"check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
+		"backfill": "tsx scripts/backfill.ts",
+		"backfill:dry": "tsx scripts/backfill.ts --dry-run"
 	},
 	"engines": {
 		"node": ">=22.0.0",
@@ -16,6 +18,7 @@
 		"typescript": "^5.8.0"
 	},
 	"dependencies": {
+		"@notionhq/client": "^5.0.0",
 		"@notionhq/workers": ">=0.0.0"
 	}
 }
