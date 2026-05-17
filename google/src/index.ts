@@ -4,9 +4,47 @@ import { Worker } from "@notionhq/workers";
 import * as Schema from "@notionhq/workers/schema";
 import { JWT } from "google-auth-library";
 import { google, type admin_directory_v1, type calendar_v3, type gmail_v1 } from "googleapis";
+import { clean, loadGlossary } from "./cleaning";
+import type { Entity, GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
 export default worker;
+
+// Resolve the Glossary data source ID from the env or skip cleaning.
+// Set GLOSSARY_DATA_SOURCE_ID to the Glossary DB's data source ID.
+function readGlossaryDataSourceId(): string | null {
+	return process.env.GLOSSARY_DATA_SOURCE_ID?.trim() || null;
+}
+
+async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+	const glossaryDataSourceId = readGlossaryDataSourceId();
+	if (!glossaryDataSourceId) {
+		console.warn("[google] GLOSSARY_DATA_SOURCE_ID not set — skipping glossary normalization");
+		return [];
+	}
+	try {
+		const entries = await loadGlossary(notion, glossaryDataSourceId);
+		console.log(`[google] loaded ${entries.length} Glossary entries`);
+		return entries;
+	} catch (err) {
+		console.warn("[google] loadGlossary failed:", err instanceof Error ? err.message : err);
+		return [];
+	}
+}
+
+// Merge entity arrays, dedup by (type, text). Used when an item has multiple
+// cleaned fields (e.g. email body + subject) so the recognized entities
+// from each pass aggregate cleanly.
+function mergeEntities(...lists: Entity[][]): Entity[] {
+	const seen = new Map<string, Entity>();
+	for (const list of lists) {
+		for (const e of list) {
+			const key = `${e.type}:${e.text}`;
+			if (!seen.has(key)) seen.set(key, e);
+		}
+	}
+	return Array.from(seen.values());
+}
 
 // =========================================================================
 // Constants
@@ -346,6 +384,7 @@ async function resolveNotionUser(
 async function upsertGoogleItem(
 	notion: NotionClient,
 	item: GoogleItem,
+	entities: Entity[],
 	caches: {
 		userMatch?: Map<string, string | null>;
 		existingIds?: Map<string, { pageId: string }>;
@@ -378,7 +417,8 @@ async function upsertGoogleItem(
 		Name: { title: [{ type: "text", text: { content: title.slice(0, 2000) } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: dataType } },
-		Status: { select: { name: "cleaned" } },
+		Status: { select: { name: "pending" } },
+		Entities: { rich_text: [{ type: "text", text: { content: JSON.stringify(entities) } }] },
 	};
 	if (ownerNotionId) {
 		properties["Person Source"] = { people: [{ id: ownerNotionId }] };
@@ -680,6 +720,7 @@ async function pullForAllUsers(
 	console.log(
 		`[pullForAllUsers:${kind}] preloaded ${existingIds.size} existing item IDs for dedup`,
 	);
+	const glossary = await loadGlossaryOnce(notion);
 
 	const users = await listWorkspaceUsers(domain);
 	console.log(`[pullForAllUsers:${kind}] discovered ${users.length} active workspace users`);
@@ -695,7 +736,34 @@ async function pullForAllUsers(
 			for (const item of items) {
 				stats.itemsProcessed++;
 				try {
-					const res = await upsertGoogleItem(notion, item, { userMatch, existingIds });
+					// Apply Glossary normalization to source-derived text fields.
+					// Email: subject + body. Event: summary + description.
+					// `redact()` already ran for sensitive patterns; clean() handles aliases.
+					let normalized = item;
+					let entities: Entity[] = [];
+					if (item.kind === "email") {
+						const subjectClean = clean(item.subject, glossary);
+						const bodyClean = clean(item.bodyPlain, glossary);
+						entities = mergeEntities(subjectClean.entities, bodyClean.entities);
+						normalized = {
+							...item,
+							subject: subjectClean.cleanedText,
+							bodyPlain: bodyClean.cleanedText,
+						};
+					} else {
+						const summaryClean = clean(item.summary, glossary);
+						const descClean = clean(item.description, glossary);
+						entities = mergeEntities(summaryClean.entities, descClean.entities);
+						normalized = {
+							...item,
+							summary: summaryClean.cleanedText,
+							description: descClean.cleanedText,
+						};
+					}
+					const res = await upsertGoogleItem(notion, normalized, entities, {
+						userMatch,
+						existingIds,
+					});
 					if (res.created) stats.itemsCreated++;
 					else stats.itemsSkipped++;
 				} catch (err) {

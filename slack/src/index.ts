@@ -4,6 +4,8 @@ import { Worker } from "@notionhq/workers";
 import { j } from "@notionhq/workers/schema-builder";
 import * as Schema from "@notionhq/workers/schema";
 import { WebClient } from "@slack/web-api";
+import { clean, loadGlossary } from "./cleaning";
+import type { Entity, GlossaryEntry } from "./cleaning";
 
 const worker = new Worker();
 export default worker;
@@ -18,6 +20,31 @@ const SLACK_NAMESPACE_UUID = "5f4d8a1c-1b3a-4e5f-9d2c-7e6f8a9b0c1d";
 // Earliest Slack message ts the worker is allowed to ingest (epoch seconds).
 // 1767225600 = 2026-01-01T00:00:00Z. Messages older than this are skipped.
 const MIN_MESSAGE_TIMESTAMP = "1767225600";
+
+// Resolve the Glossary data source ID from the env or skip cleaning.
+// Set GLOSSARY_DATA_SOURCE_ID to the Glossary DB's data source ID
+// (resolve with `ntn datasources resolve <db-id>`).
+function readGlossaryDataSourceId(): string | null {
+	return process.env.GLOSSARY_DATA_SOURCE_ID?.trim() || null;
+}
+
+// Load the Glossary once per worker run; pass through to clean(). Returns an
+// empty array if the env var is unset (text passes through unchanged).
+async function loadGlossaryOnce(notion: NotionClient): Promise<GlossaryEntry[]> {
+	const glossaryDataSourceId = readGlossaryDataSourceId();
+	if (!glossaryDataSourceId) {
+		console.warn("[slack] GLOSSARY_DATA_SOURCE_ID not set — skipping glossary normalization");
+		return [];
+	}
+	try {
+		const entries = await loadGlossary(notion, glossaryDataSourceId);
+		console.log(`[slack] loaded ${entries.length} Glossary entries`);
+		return entries;
+	} catch (err) {
+		console.warn("[slack] loadGlossary failed:", err instanceof Error ? err.message : err);
+		return [];
+	}
+}
 
 function uuidv5(name: string, namespace: string): string {
 	const nsHex = namespace.replace(/-/g, "");
@@ -36,6 +63,7 @@ function uuidv5(name: string, namespace: string): string {
 
 type SlackMessageInput = {
 	text: string;
+	entities?: Entity[];
 	teamId: string | null;
 	userId: string | null;
 	userName: string;
@@ -175,11 +203,13 @@ async function upsertSlackMessage(
 		}
 	}
 
+	const entities = msg.entities ?? [];
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: title } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: "Slack message" } },
-		Status: { select: { name: "cleaned" } },
+		Status: { select: { name: "pending" } },
+		Entities: { rich_text: [{ type: "text", text: { content: JSON.stringify(entities) } }] },
 	};
 	if (matchedNotionUserId) {
 		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
@@ -331,6 +361,7 @@ async function pullSlackHistory(
 	console.log(
 		`[pullSlackHistory] preloaded ${existingIdsCache.size} existing Slack message IDs for in-memory dedup`,
 	);
+	const glossary = await loadGlossaryOnce(notion);
 
 	async function getUserInfo(userId: string): Promise<UserCacheEntry> {
 		const cached = userInfoCache.get(userId);
@@ -402,7 +433,10 @@ async function pullSlackHistory(
 			? await getUserInfo(slackUserId)
 			: { displayName: "unknown", realName: null, email: null };
 
-		const cleanedText = await cleanSlackText(msg.text ?? "", getUserInfo);
+		const normalizedSlack = await cleanSlackText(msg.text ?? "", getUserInfo);
+		const cleaned = clean(normalizedSlack, glossary);
+		const cleanedText = cleaned.cleanedText;
+		const cleanedEntities = cleaned.entities;
 
 		let permalink: string | null = null;
 		if (options.fetchPermalinks) {
@@ -422,6 +456,7 @@ async function pullSlackHistory(
 				notion,
 				{
 					text: cleanedText,
+					entities: cleanedEntities,
 					teamId,
 					userId: slackUserId,
 					userName: userInfo.displayName,
