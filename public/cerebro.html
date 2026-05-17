@@ -1779,20 +1779,43 @@ function mountAnswered() {
     lastTurn.done = true;
   };
 
-  writeStreaming("thinking…");
+  const thinkingPhrases = [
+    "thinking…",
+    "pulling threads…",
+    "connecting the dots…",
+    "reading the room…",
+    "digging through memory…",
+    "cross-referencing signals…",
+    "asking the hive mind…",
+    "brewing insights…",
+    "scanning the vault…",
+    "piecing it together…",
+    "crunching context…",
+    "rifling through decisions…",
+    "warming up the neurons…",
+    "consulting the archives…",
+    "let me cook…",
+  ];
+  let thinkIdx = 0;
+  writeStreaming(thinkingPhrases[0]);
+  const thinkInterval = setInterval(() => {
+    thinkIdx = (thinkIdx + 1) % thinkingPhrases.length;
+    writeStreaming(thinkingPhrases[thinkIdx]);
+  }, 2000);
+
   fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question: lastTurn.question }),
   })
-    .then(r => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); })
+    .then(r => { clearInterval(thinkInterval); if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); })
     .then(data => {
       lastTurn.answer = data.answer || "(no response)";
       writeFinal(lastTurn.answer);
       lastTurn.done = true;
       if (followup) followup.focus();
     })
-    .catch(e => fail(e.message));
+    .catch(e => { clearInterval(thinkInterval); fail(e.message); });
 }
 
 function wireCitationHover() {
