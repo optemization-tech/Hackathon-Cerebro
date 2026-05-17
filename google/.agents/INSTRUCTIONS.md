@@ -539,13 +539,18 @@ Use this pattern to build up a suite of exec calls that covers each tool with re
 
 ### STM Status contract (2026-05-17, Wave 2)
 
-This worker writes rows to the **Short-Term Memory** Notion DB at data source `362a4866-2b25-801c-9ce5-000b30156f9b`. Every row this worker creates is `Status: pending` so the future Hindsight Indexer worker can pick it up on its 5-minute cron. (Indexer worker not yet built — see STATUS.md.)
+This worker writes rows to the **Short-Term Memory** Notion DB at data source `362a4866-2b25-801c-9ce5-000b30156f9b`. Every row this worker creates is `Status: pending` so the future Hindsight Indexer worker can pick it up on its 5-minute cron.
 
-**Rows include**:
+**Body content (narrative-only):**
+- **Email rows:** page body contains only the cleaned email plaintext. No subject heading, no metadata section. Empty-body emails are skipped entirely (not written to STM).
+- **Calendar Event rows:** page body contains a single narrative sentence: `"<title>" — a calendar event on <date>, organized by <organizer>, with attendees <names>. <description if any>.` This form is designed for Hindsight fact extraction. If extraction still produces zero memory units, fall back to `Status: skipped` (decision pending validation).
+
+**Properties per row:**
 - `Data Type: Email` or `Data Type: Calendar Event`.
-- `Entities`: JSON-stringified `[{text, type}, …]` from `clean()` applied to subject + body (email) or summary + description (event). Merged + deduped via `mergeEntities()`.
-- Cleaned body (Glossary-normalized + secrets-redacted) in the page body.
+- `Metadata`: rich_text JSON blob containing structured metadata (sender, recipients, subject, IDs, labels for email; organizer, attendees, calendar/event IDs, start/end, links for events). Capped at 2000 chars.
 - `ID`: UUIDv5 derived from `gmail://{owner}/{messageId}` or `gcal://{owner}/{calendarId}/{eventId}` — unchanged from initial build.
+- `Event Date`: date property from email date or event start.
+- `Person Source`: Notion user matched by owner email.
 
 **No `Source` property:** Wave 1 didn't add Source to STM. The Indexer derives `source:gmail` / `source:gcal` from `Data Type`. If STM gets a Source property later, this worker should populate it.
 
@@ -553,4 +558,4 @@ This worker writes rows to the **Short-Term Memory** Notion DB at data source `3
 
 Imports `clean()` + `loadGlossary()` from `./cleaning` (vendored copy of `lib/cleaning/` at repo root). Glossary entries load once per sync cycle. `redact()` runs first (credit cards, SSN, tokens), then `clean()` applies canonical-form normalization.
 
-If `GLOSSARY_DATA_SOURCE_ID` is unset, the worker logs a warning and writes raw text with empty entities — the Indexer still indexes those rows.
+If `GLOSSARY_DATA_SOURCE_ID` is unset, the worker logs a warning and writes raw text — the Indexer still indexes those rows.

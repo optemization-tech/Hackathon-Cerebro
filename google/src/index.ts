@@ -249,90 +249,102 @@ function idKeyFor(item: GoogleItem): string {
 	return `gcal://${item.ownerEmail}/${item.calendarId}/${item.eventId}`;
 }
 
-function renderEmail(item: Extract<GoogleItem, { kind: "email" }>, id: string): { title: string; markdown: string } {
+type RenderResult = { title: string; markdown: string; metadata: Record<string, unknown> };
+
+function renderEmail(item: Extract<GoogleItem, { kind: "email" }>, id: string): RenderResult {
 	const subject = item.subject.trim() || "(no subject)";
 	const titlePreview = subject.replace(/\s+/g, " ").slice(0, 100);
 	const title = `[${item.ownerEmail}] ${titlePreview}`;
 
-	const body = redact(item.bodyPlain.trim() || "_(empty body)_");
+	const markdown = redact(item.bodyPlain.trim());
 
-	const meta: string[] = [];
-	meta.push(`- **ID:** \`${id}\``);
-	meta.push(`- **Owner (mailbox):** ${item.ownerEmail}`);
-	meta.push(`- **From:** ${item.from}`);
-	if (item.to.length > 0) meta.push(`- **To:** ${item.to.join(", ")}`);
-	if (item.cc.length > 0) meta.push(`- **Cc:** ${item.cc.join(", ")}`);
-	meta.push(`- **Date:** ${item.dateIso}`);
-	if (item.threadId) meta.push(`- **Gmail thread ID:** \`${item.threadId}\``);
-	meta.push(`- **Gmail message ID:** \`${item.messageId}\``);
-	if (item.labels.length > 0) meta.push(`- **Labels:** ${item.labels.join(", ")}`);
-	if (item.gmailUrl) meta.push(`- **Link:** ${item.gmailUrl}`);
+	const metadata: Record<string, unknown> = {
+		id,
+		owner: item.ownerEmail,
+		from: item.from,
+		to: item.to,
+		cc: item.cc,
+		date: item.dateIso,
+		subject: item.subject,
+		messageId: item.messageId,
+		threadId: item.threadId,
+		labels: item.labels,
+		gmailUrl: item.gmailUrl,
+	};
 
-	const markdown = [
-		`## Subject`,
-		``,
-		redact(subject),
-		``,
-		`## Body`,
-		``,
-		body,
-		``,
-		`---`,
-		``,
-		`## Metadata`,
-		``,
-		...meta,
-	].join("\n");
-
-	return { title, markdown };
+	return { title, markdown, metadata };
 }
 
-function renderEvent(item: Extract<GoogleItem, { kind: "event" }>, id: string): { title: string; markdown: string } {
+function formatDateHuman(iso: string): string {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return iso;
+	const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+	const month = months[d.getUTCMonth()];
+	const day = d.getUTCDate();
+	const year = d.getUTCFullYear();
+	const h = d.getUTCHours();
+	const m = d.getUTCMinutes();
+	const period = h >= 12 ? "PM" : "AM";
+	const h12 = h % 12 || 12;
+	const mStr = m.toString().padStart(2, "0");
+	return `${month} ${day}, ${year} at ${h12}:${mStr} ${period} UTC`;
+}
+
+function renderEvent(item: Extract<GoogleItem, { kind: "event" }>, id: string): RenderResult {
 	const summary = item.summary.trim() || "(untitled event)";
 	const titlePreview = summary.replace(/\s+/g, " ").slice(0, 100);
 	const title = `[${item.ownerEmail}] ${titlePreview}`;
 
-	const description = redact(item.description.trim() || "_(no description)_");
+	const parts: string[] = [];
+	parts.push(`"${redact(summary)}"`);
 
-	const meta: string[] = [];
-	meta.push(`- **ID:** \`${id}\``);
-	meta.push(`- **Owner (calendar):** ${item.ownerEmail}`);
-	meta.push(`- **Calendar ID:** \`${item.calendarId}\``);
-	meta.push(`- **Event ID:** \`${item.eventId}\``);
-	if (item.startIso) meta.push(`- **Start:** ${item.startIso}`);
-	if (item.endIso) meta.push(`- **End:** ${item.endIso}`);
-	if (item.organizer) meta.push(`- **Organizer:** ${item.organizer}`);
-	if (item.location) meta.push(`- **Location:** ${item.location}`);
-	if (item.meetLink) meta.push(`- **Meet link:** ${item.meetLink}`);
-	if (item.htmlLink) meta.push(`- **Link:** ${item.htmlLink}`);
-	if (item.attendees.length > 0) {
-		const lines = item.attendees.map((a) => {
-			const name = a.name ? `${a.name} <${a.email}>` : a.email;
-			const status = a.status ?? "needsAction";
-			const selfMark = a.self ? " (self)" : "";
-			return `  - ${name} — ${status}${selfMark}`;
-		});
-		meta.push(`- **Attendees (${item.attendees.length}):**`);
-		meta.push(...lines);
+	if (item.startIso) {
+		parts.push(` — a calendar event on ${formatDateHuman(item.startIso)}`);
+	} else {
+		parts.push(" — a calendar event");
 	}
 
-	const markdown = [
-		`## Summary`,
-		``,
-		redact(summary),
-		``,
-		`## Description`,
-		``,
-		description,
-		``,
-		`---`,
-		``,
-		`## Metadata`,
-		``,
-		...meta,
-	].join("\n");
+	if (item.organizer) {
+		parts.push(`, organized by ${item.organizer}`);
+	}
 
-	return { title, markdown };
+	const attendeeNames = item.attendees
+		.filter((a) => !a.self)
+		.map((a) => a.name || a.email)
+		.filter(Boolean);
+	if (attendeeNames.length > 0) {
+		parts.push(`, with attendees ${attendeeNames.join(", ")}`);
+	}
+
+	parts.push(".");
+
+	const description = redact(item.description.trim());
+	if (description) {
+		parts.push(` ${description}`);
+	}
+
+	const markdown = parts.join("");
+
+	const metadata: Record<string, unknown> = {
+		id,
+		owner: item.ownerEmail,
+		calendarId: item.calendarId,
+		eventId: item.eventId,
+		organizer: item.organizer,
+		attendees: item.attendees.map((a) => ({
+			email: a.email,
+			name: a.name,
+			status: a.status,
+			self: a.self,
+		})),
+		start: item.startIso,
+		end: item.endIso,
+		location: item.location,
+		meetLink: item.meetLink,
+		htmlLink: item.htmlLink,
+	};
+
+	return { title, markdown, metadata };
 }
 
 async function resolveNotionUser(
@@ -391,18 +403,27 @@ async function upsertGoogleItem(
 		}
 	}
 
-	const { title, markdown } =
+	const { title, markdown, metadata } =
 		item.kind === "email" ? renderEmail(item, id) : renderEvent(item, id);
+
+	// Skip rows with no narrative content — empty bodies pollute Hindsight extraction.
+	if (!markdown) {
+		caches.existingIds?.set(id, { pageId: "" });
+		return { id, pageId: "", created: false };
+	}
 
 	const ownerNotionId = await resolveNotionUser(notion, item.ownerEmail, caches.userMatch);
 
 	const dataType = item.kind === "email" ? "Email" : "Calendar Event";
+
+	const metadataJson = JSON.stringify(metadata);
 
 	const properties: Record<string, unknown> = {
 		Name: { title: [{ type: "text", text: { content: title.slice(0, 2000) } }] },
 		ID: { rich_text: [{ type: "text", text: { content: id } }] },
 		"Data Type": { select: { name: dataType } },
 		Status: { select: { name: "pending" } },
+		Metadata: { rich_text: [{ type: "text", text: { content: metadataJson.slice(0, 2000) } }] },
 	};
 	if (ownerNotionId) {
 		properties["Person Source"] = { people: [{ id: ownerNotionId }] };
