@@ -1890,12 +1890,40 @@ function renderEntityPanel(id) {
       </details>`;
     }
 
+    const connectedBy = new Map();
+    for (const e of state.graphData.edges) {
+      const s = typeof e.source === "object" ? e.source.id : e.source;
+      const t = typeof e.target === "object" ? e.target.id : e.target;
+      let other = null;
+      if (s === id) other = t;
+      else if (t === id) other = s;
+      if (!other) continue;
+      const cn = state.graphData.nodes.find(n => n.id === other);
+      if (cn && !connectedBy.has(cn.type)) connectedBy.set(cn.type, []);
+      if (cn) connectedBy.get(cn.type).push({ label: cn.label, id: cn.id, count: e.count || 1 });
+    }
+    for (const [, arr] of connectedBy) arr.sort((a, b) => b.count - a.count);
+
+    let entitiesHtml = "";
+    for (const [type, items] of connectedBy) {
+      const icon = TYPE_ICONS_PANEL[type] || "📄";
+      const label = TYPE_LABELS[type] || type;
+      const list = items.slice(0, 10).map(it =>
+        `<div class="fact-item" data-node-id="${it.id}" style="cursor:pointer"><div class="fact-text">${it.label}</div></div>`
+      ).join("");
+      entitiesHtml += `<details class="accordion-section">
+        <summary class="accordion-header"><span class="accordion-count">${items.length}</span><span>${icon} ${label}</span></summary>
+        <div class="accordion-body"><div class="fact-list">${list}</div></div>
+      </details>`;
+    }
+
     return `
       <div class="panel-eyebrow">// ${node.type.toUpperCase()}</div>
       <h2 class="entity-name">${node.label}</h2>
       <div class="entity-role">${node.factCount} connected facts</div>
       <div class="ascii-rule">─────────────────────────</div>
-      ${accordionHtml || '<div class="graph-empty" style="height:auto;padding:12px 0;">no facts</div>'}
+      ${accordionHtml || ''}
+      ${entitiesHtml ? '<div class="ascii-rule">─────────────────────────</div><div class="panel-eyebrow" style="margin:12px 0 4px;">// CONNECTED ENTITIES</div>' + entitiesHtml : ''}
     `;
   }
 
@@ -2090,6 +2118,29 @@ async function mountGraph() {
       });
       el.addEventListener("mouseleave", () => {
         el.classList.remove("highlighted");
+        canvas.classList.remove("has-hover");
+        node.style("opacity", 0.85);
+        link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
+      });
+    });
+    document.querySelectorAll(".fact-item[data-node-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const nid = el.dataset.nodeId;
+        if (!nid) return;
+        state.graphFocus = nid;
+        document.getElementById("entity-panel").innerHTML = renderEntityPanel(nid);
+        mountPanelListeners();
+        canvas.classList.add("has-hover");
+        node.style("opacity", n => n.id === nid ? 1 : 0.15);
+        link.style("opacity", 0.015).style("stroke-width", 0.3);
+      });
+      el.addEventListener("mouseenter", () => {
+        const nid = el.dataset.nodeId;
+        canvas.classList.add("has-hover");
+        node.style("opacity", n => n.id === nid ? 1 : 0.15);
+        link.style("opacity", 0.015).style("stroke-width", 0.3);
+      });
+      el.addEventListener("mouseleave", () => {
         canvas.classList.remove("has-hover");
         node.style("opacity", 0.85);
         link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
