@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { TOOL_DEFINITIONS, executeTool } from "@/lib/tools";
+import { searchDecisions } from "@/lib/tools/decisions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,41 +29,29 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "invalid body", issues: parsed.error.issues }, { status: 400 });
 
-  const anthropic = new Anthropic({ apiKey });
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: parsed.data.question }];
+  const { decisions } = await searchDecisions({});
+  const context = decisions.map((d) =>
+    [
+      `[${d.decisionId}] ${d.title}`,
+      `Status: ${d.status ?? "unknown"} | Scope: ${d.scope ?? "none"} | Date: ${d.decidedOn ?? "unknown"}`,
+      d.why ? `Why: ${d.why}` : null,
+      d.relatedPeople.length ? `People: ${d.relatedPeople.join(", ")}` : null,
+      d.relatedCompanies.length ? `Companies: ${d.relatedCompanies.join(", ")}` : null,
+      `URL: ${d.pageUrl}`,
+    ].filter(Boolean).join("\n"),
+  ).join("\n\n");
 
-  let response = await anthropic.messages.create({
+  const anthropic = new Anthropic({ apiKey });
+
+  const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     system: loadSkill("decisions"),
-    messages,
-    tools: TOOL_DEFINITIONS,
-    max_tokens: 4096,
+    messages: [{
+      role: "user",
+      content: `Here are all decisions from the database:\n\n${context}\n\n---\n\nQuestion: ${parsed.data.question}`,
+    }],
+    max_tokens: 2048,
   });
-
-  while (response.stop_reason === "tool_use") {
-    const toolUseBlocks = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
-    );
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-      toolUseBlocks.map(async (b) => ({
-        type: "tool_result" as const,
-        tool_use_id: b.id,
-        content: await executeTool(b.name, b.input as Record<string, unknown>),
-      })),
-    );
-
-    messages.push({ role: "assistant", content: response.content });
-    messages.push({ role: "user", content: toolResults });
-
-    response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      system: loadSkill("decisions"),
-      messages,
-      tools: TOOL_DEFINITIONS,
-      max_tokens: 4096,
-    });
-  }
 
   const textBlocks = response.content.filter(
     (b): b is Anthropic.TextBlock => b.type === "text",
