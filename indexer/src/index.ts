@@ -17,10 +17,23 @@ const HINDSIGHT_API_KEY = process.env.HINDSIGHT_API_KEY ?? "";
 const HINDSIGHT_NAMESPACE = process.env.HINDSIGHT_NAMESPACE ?? "default";
 const HINDSIGHT_BANK_ID = process.env.HINDSIGHT_BANK_ID ?? "Cerebro";
 
-// Notion user ID → person-source slug. Hardcoded for V1 team.
-// Extend as new people join. Falls back to first-name slug from Notion user lookup.
 const PERSON_SOURCE_SLUGS: Record<string, string> = {
-	// Populate after `notion.users.list()`: "<user-id>": "tem", etc.
+	"0462b092-488f-4f81-bf37-85423283b109": "tem",
+	"8c25f6cd-3745-43f6-8c40-826cea034175": "tem",
+	"192d872b-594c-8131-84bf-0002820039c4": "chris",
+	"341d872b-594c-81bb-9b39-0002a6354b69": "dunston",
+	"99f59a3a-7414-410f-9bd4-1804724c071a": "esteban",
+	"1c2d872b-594c-81d2-bc4f-0002dba12c81": "hasty",
+	"237d872b-594c-81f0-bd8d-00020699ef43": "irene",
+	"2dfd872b-594c-81f9-a069-00025aa21126": "kamau",
+	"2c90509c-e4ea-4315-9138-ddb609b0b4cd": "luiza",
+	"237d872b-594c-8145-8aac-0002381e8cbc": "marcelo",
+	"1dcd872b-594c-8104-a8df-00020b617695": "mike",
+	"c5fc348d-7b78-49db-b861-65ed6f5b6837": "natalie",
+	"872e0aa5-59a4-4734-a2f6-383ea17de82a": "nick",
+	"95812aa8-301f-49eb-875c-bd1d3054877d": "oscar",
+	"8f17e69a-cbf2-4abd-84eb-fc235f4442bc": "skyler",
+	"a15bdf66-161a-4b27-a3d4-eb47f94dbc0f": "vini",
 };
 
 const RETAIN_TIMEOUT_MS = 30_000;
@@ -160,13 +173,17 @@ async function buildRowShape(
 	let personSourceName = "unknown";
 	let personSourceSlug = "unknown";
 	if (personId) {
+		personSourceSlug = PERSON_SOURCE_SLUGS[personId] ?? "unknown";
 		try {
 			const u = await notion.users.retrieve({ user_id: personId });
 			personSourceName = u.name ?? "unknown";
-			personSourceSlug =
-				PERSON_SOURCE_SLUGS[personId] ?? slugFromName(personSourceName);
+			if (personSourceSlug === "unknown") {
+				personSourceSlug = slugFromName(personSourceName);
+			}
 		} catch {
-			// user lookup failed
+			if (personSourceSlug !== "unknown") {
+				personSourceName = personSourceSlug;
+			}
 		}
 	}
 
