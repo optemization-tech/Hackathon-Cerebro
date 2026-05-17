@@ -28,7 +28,7 @@ Last updated: 2026-05-17 (hackathon day 2, demo Sunday evening)
 ## What's stretch
 
 - [ ] Granola or Circleback source worker
-- [ ] Notion-Docs source worker (watches org Docs DB)
+- [x] Notion-Docs source worker (`notion-docs/`) — built, retains directly to Hindsight (bypasses STM). Needs deploy.
 - [ ] Companies, Strategies, Patterns LTM DBs populated
 - [ ] Force-directed graph with live data
 
