@@ -1883,7 +1883,13 @@ fetch("/api/deck")
 // ElevenLabs Agents SDK bridge — exposes window.CerebroEL for the inline script.
 // Loaded as an ES module from esm.sh; falls back gracefully if offline.
 try {
-  const { Conversation } = await import("https://esm.sh/@elevenlabs/client@1.7.0");
+  // livekit-client must be pinned to ≤2.18.0 — newer versions bundle a
+  // publisher SDP offer in JoinRequest that ElevenLabs' LiveKit server
+  // (v1.9.0, protocol 16) silently drops, causing negotiation to time out.
+  // See https://github.com/elevenlabs/packages/issues/781
+  const { Conversation } = await import(
+    "https://esm.sh/@elevenlabs/client@1.7.0?deps=livekit-client@2.16.1"
+  );
   const AGENT_ID = "agent_5401krsnx55xfcprbgf1j49y1a9q";
   let active = null;
 
