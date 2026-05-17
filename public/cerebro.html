@@ -6,7 +6,7 @@
 <title>cerebro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-paper: #F7F4EF;
@@ -1103,8 +1103,8 @@
   .accordion-section summary { list-style: none; cursor: pointer; }
   .accordion-section summary::-webkit-details-marker { display: none; }
   .accordion-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px; font-family: var(--serif); font-size: 16px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; font-family: 'Cabin', sans-serif; font-size: 16px;
     letter-spacing: 0.01em; color: var(--ink); font-weight: 600;
     text-transform: capitalize;
     border-radius: 6px; transition: background 150ms;
@@ -1885,7 +1885,7 @@ function renderEntityPanel(id) {
         </div>`;
       }).join("");
       accordionHtml += `<details class="accordion-section">
-        <summary class="accordion-header"><span>${icon} ${label}</span><span class="accordion-count">${facts.length}</span></summary>
+        <summary class="accordion-header"><span class="accordion-count">${facts.length}</span><span>${icon} ${label}</span></summary>
         <div class="accordion-body"><div class="fact-list">${items}</div></div>
       </details>`;
     }
