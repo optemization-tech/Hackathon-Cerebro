@@ -1411,8 +1411,7 @@ function transformHindsightGraph(raw) {
 
   const maxC = rawEdges.length > 0 ? rawEdges[0].count : 1;
   const visualEdges = rawEdges
-    .filter(e => e.count >= 2)
-    .slice(0, 120)
+    .slice(0, 200)
     .map(e => ({ ...e, strength: maxC > 1 ? Math.pow(e.count / maxC, 0.35) : 0.5 }));
 
   const connectedIds = new Set();
@@ -2012,71 +2011,77 @@ async function mountGraph() {
   });
 
   const canvas = container;
-  const adj = new Map();
-  edges.forEach(e => {
-    const sid = typeof e.source === "object" ? e.source.id : e.source;
-    const tid = typeof e.target === "object" ? e.target.id : e.target;
-    if (!adj.has(sid)) adj.set(sid, []);
-    if (!adj.has(tid)) adj.set(tid, []);
-    adj.get(sid).push({ to: tid, strength: e.strength, edge: e });
-    adj.get(tid).push({ to: sid, strength: e.strength, edge: e });
-  });
 
-  function influenceDecay(rootId) {
+  function getEdgeId(d) {
+    const s = d.source.id ?? d.source;
+    const t = d.target.id ?? d.target;
+    return [s, t];
+  }
+
+  function computeInfluence(rootId) {
+    const linkData = [];
+    link.each(function(d) { linkData.push(d); });
+
+    const adj = new Map();
+    linkData.forEach(d => {
+      const [sid, tid] = getEdgeId(d);
+      if (!adj.has(sid)) adj.set(sid, []);
+      if (!adj.has(tid)) adj.set(tid, []);
+      adj.get(sid).push({ to: tid, strength: d.strength || 0.3, sid, tid });
+      adj.get(tid).push({ to: sid, strength: d.strength || 0.3, sid, tid });
+    });
+
     const influence = new Map();
-    const edgeInfluence = new Map();
+    const edgeInf = new Map();
     influence.set(rootId, 1.0);
     const queue = [{ id: rootId, power: 1.0 }];
     const visited = new Set([rootId]);
     while (queue.length > 0) {
       const { id, power } = queue.shift();
-      for (const { to, strength, edge } of (adj.get(id) || [])) {
-        const propagated = power * (0.3 + strength * 0.7) * 0.65;
-        if (propagated < 0.03 || visited.has(to)) continue;
-        visited.add(to);
-        influence.set(to, propagated);
-        const eid = (typeof edge.source === "object" ? edge.source.id : edge.source) + "|" + (typeof edge.target === "object" ? edge.target.id : edge.target);
-        edgeInfluence.set(eid, Math.max(edgeInfluence.get(eid) || 0, propagated));
-        queue.push({ id: to, power: propagated });
+      for (const nb of (adj.get(id) || [])) {
+        const propagated = power * (0.3 + nb.strength * 0.7) * 0.65;
+        if (propagated < 0.02 || visited.has(nb.to)) continue;
+        visited.add(nb.to);
+        influence.set(nb.to, propagated);
+        const ek = nb.sid + "|" + nb.tid;
+        edgeInf.set(ek, Math.max(edgeInf.get(ek) || 0, propagated));
+        queue.push({ id: nb.to, power: propagated });
       }
     }
-    return { influence, edgeInfluence };
+    return { influence, edgeInf };
   }
 
   function applyInfluence(rootId) {
     canvas.classList.add("has-hover");
-    const { influence, edgeInfluence } = influenceDecay(rootId);
-    node
-      .style("opacity", d => d.id === rootId ? 1 : (influence.get(d.id) || 0.06))
-      .select("circle, rect").style("transform", d => {
-        const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
-        return inf > 0.1 ? `scale(${1 + inf * 0.3})` : "scale(1)";
-      });
-    node.select(".graph-node-label").style("opacity", d => {
+    const { influence, edgeInf } = computeInfluence(rootId);
+
+    node.style("opacity", d => d.id === rootId ? 1 : (influence.get(d.id) || 0.05));
+    node.selectAll("circle, rect").style("transform", function() {
+      const d = d3.select(this.parentNode).datum();
       const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
-      return inf > 0.15 ? 1 : inf > 0.05 ? 0.4 : 0;
+      return inf > 0.08 ? `scale(${1 + inf * 0.4})` : "scale(0.8)";
     });
-    link
-      .style("opacity", d => {
-        const sid = typeof d.source === "object" ? d.source.id : d.source;
-        const tid = typeof d.target === "object" ? d.target.id : d.target;
-        const eid = sid + "|" + tid;
-        const eid2 = tid + "|" + sid;
-        return edgeInfluence.get(eid) || edgeInfluence.get(eid2) || 0.03;
-      })
-      .style("stroke-width", d => {
-        const sid = typeof d.source === "object" ? d.source.id : d.source;
-        const tid = typeof d.target === "object" ? d.target.id : d.target;
-        const eid = sid + "|" + tid;
-        const eid2 = tid + "|" + sid;
-        const inf = edgeInfluence.get(eid) || edgeInfluence.get(eid2) || 0;
-        return 1 + inf * 5;
-      });
+    node.select(".graph-node-label").style("opacity", function() {
+      const d = d3.select(this.parentNode).datum();
+      const inf = d.id === rootId ? 1 : (influence.get(d.id) || 0);
+      return inf > 0.1 ? 1 : inf > 0.04 ? 0.4 : 0;
+    });
+
+    link.style("opacity", d => {
+      const [sid, tid] = getEdgeId(d);
+      return edgeInf.get(sid + "|" + tid) || edgeInf.get(tid + "|" + sid) || 0.02;
+    });
+    link.style("stroke-width", d => {
+      const [sid, tid] = getEdgeId(d);
+      const inf = edgeInf.get(sid + "|" + tid) || edgeInf.get(tid + "|" + sid) || 0;
+      return 1 + inf * 6;
+    });
   }
 
   function clearInfluence() {
     canvas.classList.remove("has-hover");
-    node.style("opacity", 1).select("circle, rect").style("transform", null);
+    node.style("opacity", 1);
+    node.selectAll("circle, rect").style("transform", null);
     node.select(".graph-node-label").style("opacity", 1);
     link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7).style("stroke-width", d => 1 + (d.strength || 0) * 5);
   }
