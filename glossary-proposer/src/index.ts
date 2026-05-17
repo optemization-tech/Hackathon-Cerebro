@@ -7,8 +7,11 @@ const worker = new Worker();
 export default worker;
 
 const STM_DATA_SOURCE_ID = "362a4866-2b25-801c-9ce5-000b30156f9b";
+const PEOPLE_DATA_SOURCE_ID = "c34cc2e0-79f7-4436-b826-220449c55184";
+const COMPANIES_DATA_SOURCE_ID = "b63f79ed-9f3b-4b7b-8b12-263263ba3d5d";
 const DEFAULT_MIN_FREQUENCY = 3;
 const MAX_BODY_FETCH_PER_CYCLE = 200;
+const BODY_FETCH_DELAY_MS = 350;
 
 function getGlossaryDataSourceId(): string {
 	const id = process.env.GLOSSARY_DATA_SOURCE_ID?.trim();
@@ -107,6 +110,32 @@ function buildKnownTermsSet(entries: ExistingGlossaryEntry[]): Set<string> {
 	return known;
 }
 
+async function loadExclusionNames(
+	notion: NotionClient,
+	dataSourceId: string,
+	titleProp: string,
+): Promise<string[]> {
+	const names: string[] = [];
+	let cursor: string | undefined;
+
+	do {
+		const resp = await notion.dataSources.query({
+			data_source_id: dataSourceId,
+			page_size: 100,
+			...(cursor ? { start_cursor: cursor } : {}),
+		});
+
+		for (const page of resp.results as Array<{ id: string; properties: Record<string, unknown> }>) {
+			const name = titleText(page.properties[titleProp]);
+			if (name) names.push(name);
+		}
+
+		cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
+	} while (cursor);
+
+	return names;
+}
+
 async function writeCandidate(
 	notion: NotionClient,
 	glossaryDsId: string,
@@ -114,7 +143,7 @@ async function writeCandidate(
 ): Promise<string> {
 	const properties: Record<string, unknown> = {
 		Term: { title: [{ type: "text", text: { content: candidate.term } }] },
-		Aliases: { multi_select: candidate.aliases.map((a) => ({ name: a })) },
+		Aliases: { rich_text: [{ type: "text", text: { content: candidate.aliases.join(", ") } }] },
 		Type: { select: { name: candidate.type } },
 		Status: { select: { name: "Proposed" } },
 	};
@@ -199,7 +228,8 @@ async function fetchPageBody(notion: NotionClient, pageId: string): Promise<stri
 async function proposeGlossaryCandidates(
 	notion: NotionClient,
 	since?: string,
-): Promise<{ proposed: number; skipped: number; scanned: number }> {
+	offset: number = 0,
+): Promise<{ proposed: number; skipped: number; scanned: number; hasMore: boolean; nextOffset: number }> {
 	const glossaryDsId = getGlossaryDataSourceId();
 	const minFrequency = getMinFrequency();
 
@@ -209,17 +239,28 @@ async function proposeGlossaryCandidates(
 	const knownTerms = buildKnownTermsSet(existing);
 	console.log(`[glossary-proposer] ${existing.length} entries (${knownTerms.size} terms+aliases)`);
 
+	// 1b. Load People + Companies DBs as additional exclusion sources
+	console.log("[glossary-proposer] Loading People + Companies for exclusion...");
+	const [peopleNames, companyNames] = await Promise.all([
+		loadExclusionNames(notion, PEOPLE_DATA_SOURCE_ID, "Name"),
+		loadExclusionNames(notion, COMPANIES_DATA_SOURCE_ID, "Company Name"),
+	]);
+	for (const name of peopleNames) knownTerms.add(name.toLowerCase());
+	for (const name of companyNames) knownTerms.add(name.toLowerCase());
+	console.log(`[glossary-proposer] Excluded ${peopleNames.length} people + ${companyNames.length} companies (${knownTerms.size} total known)`);
+
 	// 2. Query STM rows
 	console.log(`[glossary-proposer] Querying STM${since ? ` (since ${since})` : " (all)"}...`);
 	const rows = await querySTMRows(notion, since);
 	console.log(`[glossary-proposer] ${rows.length} STM rows found`);
 
-	if (rows.length === 0) {
-		return { proposed: 0, skipped: 0, scanned: 0 };
+	if (rows.length === 0 || offset >= rows.length) {
+		return { proposed: 0, skipped: 0, scanned: 0, hasMore: false, nextOffset: 0 };
 	}
 
 	// 3. Fetch page bodies (cap per cycle to avoid timeout)
-	const toFetch = rows.slice(0, MAX_BODY_FETCH_PER_CYCLE);
+	const toFetch = rows.slice(offset, offset + MAX_BODY_FETCH_PER_CYCLE);
+	const hasMore = offset + MAX_BODY_FETCH_PER_CYCLE < rows.length;
 	console.log(`[glossary-proposer] Fetching bodies for ${toFetch.length} rows...`);
 
 	const bodies: STMBody[] = [];
@@ -231,6 +272,7 @@ async function proposeGlossaryCandidates(
 				sourceLabel: `${row.dataType}: ${row.name}`,
 			});
 		}
+		await new Promise((r) => setTimeout(r, BODY_FETCH_DELAY_MS));
 	}
 	console.log(`[glossary-proposer] ${bodies.length} rows with body content`);
 
@@ -273,7 +315,7 @@ async function proposeGlossaryCandidates(
 		}
 	}
 
-	return { proposed, skipped, scanned: bodies.length };
+	return { proposed, skipped, scanned: bodies.length, hasMore, nextOffset: offset + MAX_BODY_FETCH_PER_CYCLE };
 }
 
 // === Shim managed database (scheduler hook only — never written to) ===
@@ -299,13 +341,14 @@ worker.sync("glossaryBackfill", {
 	database: syncShim,
 	mode: "incremental",
 	schedule: "manual",
-	execute: async (_state, { notion }) => {
-		const result = await proposeGlossaryCandidates(notion);
+	execute: async (state, { notion }) => {
+		const offset = (state as { backfillOffset?: number } | null)?.backfillOffset ?? 0;
+		const result = await proposeGlossaryCandidates(notion, undefined, offset);
 		console.log("[glossaryBackfill] result:", JSON.stringify(result));
 		return {
 			changes: [],
-			hasMore: false,
-			nextState: { lastRun: new Date().toISOString() },
+			hasMore: result.hasMore,
+			nextState: { backfillOffset: result.nextOffset, lastRun: new Date().toISOString() },
 		};
 	},
 });

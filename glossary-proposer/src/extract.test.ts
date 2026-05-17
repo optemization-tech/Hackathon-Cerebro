@@ -97,23 +97,23 @@ describe("classifyType", () => {
 	});
 
 	test(".ai/.io domain → AGENT", () => {
-		assert.equal(classifyType("Granola.ai"), "AGENT");
-		assert.equal(classifyType("Temporal.io"), "AGENT");
+		assert.equal(classifyType("Granola.ai"), "Agent");
+		assert.equal(classifyType("Temporal.io"), "Agent");
 	});
 
 	test("agent-indicator word → AGENT", () => {
-		assert.equal(classifyType("Slack Bot"), "AGENT");
-		assert.equal(classifyType("STM Pipeline"), "CONCEPT"); // pipeline is not in indicators
+		assert.equal(classifyType("Slack Bot"), "Agent");
+		assert.equal(classifyType("STM Pipeline"), "Concept"); // pipeline is not in indicators
 	});
 
 	test("single capitalized word defaults to CONCEPT", () => {
-		assert.equal(classifyType("Anthropic"), "CONCEPT");
-		assert.equal(classifyType("DataBricks"), "CONCEPT");
+		assert.equal(classifyType("Anthropic"), "Concept");
+		assert.equal(classifyType("DataBricks"), "Concept");
 	});
 
 	test("ALL-CAPS acronym defaults to CONCEPT", () => {
-		assert.equal(classifyType("STM"), "CONCEPT");
-		assert.equal(classifyType("LTM"), "CONCEPT");
+		assert.equal(classifyType("STM"), "Concept");
+		assert.equal(classifyType("LTM"), "Concept");
 	});
 });
 
@@ -217,7 +217,7 @@ describe("extractCandidates", () => {
 		const candidates = extractCandidates(rows, new Set(), 1);
 		for (const c of candidates) {
 			assert.ok(
-				c.type === "AGENT" || c.type === "CONCEPT",
+				c.type === "Agent" || c.type === "Concept",
 				`Expected AGENT or CONCEPT, got ${c.type} for "${c.term}"`,
 			);
 		}
