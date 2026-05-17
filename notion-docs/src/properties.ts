@@ -96,6 +96,12 @@ export function readCreatedById(prop: unknown): string | null {
 	return p.created_by?.id ?? null;
 }
 
+export function readRelationIds(prop: unknown): string[] {
+	const p = prop as { type?: string; relation?: { id: string }[] } | undefined;
+	if (!p || p.type !== "relation") return [];
+	return (p.relation ?? []).map((r) => r.id);
+}
+
 export function findTitleProperty(props: Record<string, unknown>): string {
 	for (const [key, val] of Object.entries(props)) {
 		const p = val as { type?: string } | undefined;
