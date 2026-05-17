@@ -1,4 +1,5 @@
-import { Client } from "@notionhq/client";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Client } = require("@notionhq/client") as typeof import("@notionhq/client");
 import { loadEnv } from "./env";
 
 let cached: Client | null = null;
