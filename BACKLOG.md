@@ -42,3 +42,27 @@ For current build status see [`STATUS.md`](STATUS.md). For the spec see [`docs/s
 - `person-source:<slug>` (when available)
 
 **Where:** Production indexer build (Session 1.1 / Wave 2). See `docs/research/source-notion-trace.md` for full investigation.
+
+---
+
+## Deploy Google source worker (blocked on GCP auth)
+
+**What:** The Google source worker (`google/`) is code-complete with People + Companies normalization but can't be deployed until a GCP service account with domain-wide delegation is created.
+
+**Why:** Tem needs Gmail + Calendar data flowing into STM. The worker code is ready — just blocked on the credential.
+
+**Steps when unblocked:**
+1. Create a GCP service account with domain-wide delegation for `optemization.com`.
+2. Base64-encode the JSON key, store in 1Password as "Cerebro Google service account" in the Optemization Automation vault.
+3. Deploy: `cd google && ntn workers deploy --name google`
+4. Set env vars and push:
+   ```
+   NOTION_API_TOKEN=<same as other workers>
+   GOOGLE_SERVICE_ACCOUNT_KEY_BASE64=<from 1Password>
+   GOOGLE_ADMIN_EMAIL=admin@optemization.com
+   GOOGLE_WORKSPACE_DOMAIN=optemization.com
+   GLOSSARY_DATA_SOURCE_ID=8f93178c-68cb-44da-8f80-0c7192088e0b
+   PEOPLE_DATA_SOURCE_ID=c34cc2e0-79f7-4436-b826-220449c55184
+   COMPANIES_DATA_SOURCE_ID=b63f79ed-9f3b-4b7b-8b12-263263ba3d5d
+   ```
+5. `ntn workers env push --yes && ntn workers deploy`
