@@ -400,9 +400,11 @@ The Indexer passes `document_id = <Short-Term Memory page ID>` on every `retain`
 
 A Notion Worker with a webhook capability. Subscribed to Hindsight Cloud webhooks for the `optemization-cerebro` bank.
 
-### `retain.completed` handler
+> **Cloud webhook caveat (2026-05-16).** Hindsight Cloud's `CreateWebhookRequest.event_types` only accepts `consolidation.completed` today — `retain.completed` is documented but not yet emitted by the Cloud API. Until that lands, the `retain.completed` handler below runs on a 5-minute cron in the Sync Worker, polling Short-Term Memory for rows with `Status: indexed` and treating each one as if a webhook had fired. Same handler logic, just pull-driven. When Cloud ships `retain.completed`, register the webhook and delete the poller — no other change needed.
 
-1. Receive event with `document_id` (the Short-Term Memory page ID).
+### `retain.completed` handler (poll-driven on Cloud; webhook-driven once Cloud supports it)
+
+1. Receive event with `document_id` (the Short-Term Memory page ID) — or, in poll mode, pick up a Short-Term Memory row with `Status: indexed`.
 2. Call Hindsight `recall(query="all facts from this document", tags=["stm:<doc-id>"], types=["world"])` — pull the structured facts Hindsight extracted.
 3. For each fact, classify into a Long-Term Memory DB (People / Decisions / Insights / Signals / Projects / Tasks) — the classification logic uses the fact's entities, context, and metadata, falling back to an LLM call if needed.
 4. Upsert into the right DB with `Captured From` pointing back to the Short-Term Memory row.
@@ -497,7 +499,7 @@ Everything in the [product scope section](#product-scope-v11--v3--long-arc) belo
 ## Open questions (hackathon-blocking)
 
 1. **Hindsight Cloud signup latency.** Need an API key by Saturday morning. If approval delays, fall back to vanilla Anthropic for the demo and use Hindsight Cloud in V1.1. Sign up at [ui.hindsight.vectorize.io/signup](https://ui.hindsight.vectorize.io/signup) Friday night.
-2. **Webhook delivery from Hindsight to Notion Workers.** Notion Workers support webhooks ([slack/CLAUDE.md docs them](../../slack/CLAUDE.md#webhooks)). Verify the URL format works with Hindsight's webhook subscription model — Hindsight expects a POST endpoint; Notion Workers expose those natively. Should "just work" but verify Saturday morning.
+2. **Webhook delivery from Hindsight to Notion Workers.** Notion Workers support webhooks ([slack/CLAUDE.md docs them](../../slack/CLAUDE.md#webhooks)). Verify the URL format works with Hindsight's webhook subscription model — Hindsight expects a POST endpoint; Notion Workers expose those natively. Should "just work" but verify Saturday morning. ⚠️ **Resolved 2026-05-16:** Hindsight Cloud's `CreateWebhookRequest` only accepts `consolidation.completed` today (verified via the OpenAPI spec at `https://api.hindsight.vectorize.io/openapi.json`). The `retain.completed` path is poll-driven in V1 (Sync Worker scans Short-Term Memory for `Status: indexed`); flip to webhook once Cloud emits the event. See [Cerebro Sync Worker](#cerebro-sync-worker-webhook-driven).
 3. **`retain.completed` → Long-Term Memory classification.** Hindsight returns generic "world facts." We need to classify each fact into Person / Decision / Insight / Signal / etc. before writing to Notion. Approach: light LLM classifier in the Sync Worker, with heuristics (entity types, context tags) as fast-path. Manageable but real work.
 4. **Granola vs Circleback for V1.** Pick one as the second source worker (besides Slack and Notion-Docs). Decision criterion: cleaner read API + per-user OAuth story. Both have MCP integrations per the available skills list.
 5. **Notion-Docs filtering rules.** Which rows in the Docs DB do we actually want to ingest? Default: all non-archived. Open question whether to also filter on `External Facing` (skip external-facing client docs?), `Status` (skip drafts?), or specific Types (skip Scratchpad/Drafts). Decide during build by looking at the actual Docs DB content.
