@@ -31,11 +31,12 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 DATE_ARGS=()
+HAS_DATE_FILTER=0
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --from)      DATE_ARGS+=("--from" "$2"); shift 2 ;;
-    --to)        DATE_ARGS+=("--to" "$2"); shift 2 ;;
-    --last)      DATE_ARGS+=("--last" "$2"); shift 2 ;;
+    --from)      DATE_ARGS+=("--from" "$2"); HAS_DATE_FILTER=1; shift 2 ;;
+    --to)        DATE_ARGS+=("--to" "$2"); HAS_DATE_FILTER=1; shift 2 ;;
+    --last)      DATE_ARGS+=("--last" "$2"); HAS_DATE_FILTER=1; shift 2 ;;
     -h|--help)
       sed -n '2,20p' "$0"
       exit 0
@@ -46,6 +47,14 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# `cb meetings search` with NO date filter silently returns a small recent
+# subset (observed: 9 vs 22 with --from 2010-01-01 on the same account).
+# Default to a very old --from so we don't miss historical meetings.
+if [[ "$HAS_DATE_FILTER" -eq 0 ]]; then
+  DATE_ARGS+=("--from" "2010-01-01")
+  echo "fetch-circleback: no date filter passed — defaulting to --from 2010-01-01 (the CLI silently truncates the result set otherwise)" >&2
+fi
 
 TMPDIR_FETCH="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_FETCH"' EXIT
