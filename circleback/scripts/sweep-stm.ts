@@ -302,14 +302,24 @@ async function main() {
 	}
 
 	// ---- Resolve Circleback host Notion user ----
-	const circlebackHostEmail = process.env.CIRCLEBACK_HOST_EMAIL?.trim() || DEFAULT_CIRCLEBACK_HOST_EMAIL;
-	const userCache = new Map<string, string | null>();
-	console.log(`[sweep] resolving Person Source for Circleback rows via email: ${circlebackHostEmail}`);
-	const circlebackUserId = await resolvePersonSourceByEmail(notion, circlebackHostEmail, userCache);
-	if (circlebackUserId) {
-		console.log(`[sweep] Circleback host resolved → Notion user ${circlebackUserId}`);
+	// CIRCLEBACK_HOST_USER_ID bypasses users.list() (needed when using a
+	// personal access token, which cannot call that API).
+	// Tem's UUID: 8c25f6cd-3745-43f6-8c40-826cea034175 (in 1Password)
+	const circlebackHostUserIdOverride = process.env.CIRCLEBACK_HOST_USER_ID?.trim() || null;
+	let circlebackUserId: string | null = null;
+	if (circlebackHostUserIdOverride) {
+		circlebackUserId = circlebackHostUserIdOverride;
+		console.log(`[sweep] Circleback host set via CIRCLEBACK_HOST_USER_ID: ${circlebackUserId}`);
 	} else {
-		console.warn(`[sweep] Circleback host email ${circlebackHostEmail} not found in Notion users — Person Source will be left blank`);
+		const circlebackHostEmail = process.env.CIRCLEBACK_HOST_EMAIL?.trim() || DEFAULT_CIRCLEBACK_HOST_EMAIL;
+		const userCache = new Map<string, string | null>();
+		console.log(`[sweep] resolving Person Source for Circleback rows via email: ${circlebackHostEmail}`);
+		circlebackUserId = await resolvePersonSourceByEmail(notion, circlebackHostEmail, userCache);
+		if (circlebackUserId) {
+			console.log(`[sweep] Circleback host resolved → Notion user ${circlebackUserId}`);
+		} else {
+			console.warn(`[sweep] Circleback host email ${circlebackHostEmail} not found in Notion users — Person Source will be left blank`);
+		}
 	}
 
 	// ---- Load STM rows ----

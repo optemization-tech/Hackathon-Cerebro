@@ -10,6 +10,29 @@ Built for the Notion Developer Platform Hackathon (May 16–17, San Francisco), 
 
 **For current build status, see [`STATUS.md`](STATUS.md)** — what's built, what's not, known issues.
 
+## Known Notion data source IDs
+
+Copy-paste these into scripts and env files — don't search Notion to find them.
+
+| Name | Data Source ID | Notes |
+|---|---|---|
+| Short-Term Memory (STM) | `362a4866-2b25-801c-9ce5-000b30156f9b` | All source workers write here |
+| Glossary | `8f93178c-68cb-44da-8f80-0c7192088e0b` | `GLOSSARY_DATA_SOURCE_ID` env var |
+| Calendar (meetings-ingest) | set via `CALENDAR_DATA_SOURCE_ID` env | See `workers/meetings-ingest/` |
+| AI Orchestration Sessions | `d6f6e4ea-f8df-4152-b321-2aff9dccf8a1` | Cerebro orchestration session log |
+
+Workspace ID: `1b128a4c-4cb0-430a-8cb7-a5a18b45d923`
+
+**Known Notion user IDs** (for `Person Source` on STM rows):
+
+| Person | Notion User UUID |
+|---|---|
+| Tem (tem@optemization.com) | `8c25f6cd-3745-43f6-8c40-826cea034175` |
+
+Note: the Workers-scope PAT (`Notion PAT - Workers scope` in 1Password) **cannot** call `users.list()` — use `CIRCLEBACK_HOST_USER_ID` env var to bypass when running sweep scripts locally.
+
+LTM DB IDs (People, Companies, Agents, etc.) live in the root `.env.example` — they're optional for source worker work.
+
 ## Worker registry
 
 | Worker | Location | Status | What it does |
