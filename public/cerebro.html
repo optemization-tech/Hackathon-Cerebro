@@ -1591,25 +1591,19 @@ function mountAnswered() {
     lastTurn.done = true;
   };
 
-  const waitForSdk = (tries = 0) => {
-    if (window.CerebroEL) return Promise.resolve();
-    if (tries > 50) return Promise.reject(new Error("SDK failed to load"));
-    return new Promise(r => setTimeout(r, 100)).then(() => waitForSdk(tries + 1));
-  };
-
-  waitForSdk()
-    .then(() => window.CerebroEL.startTextChat(lastTurn.question, {
-      onMessage: (text) => {
-        lastTurn.answer = text;
-        writeStreaming(text);
-      },
-      onEnd: () => {
-        writeFinal(lastTurn.answer);
-        lastTurn.done = true;
-        if (followup) followup.focus();
-      },
-      onError: (msg) => fail(`Connection error: ${msg}. Make sure the agent is published in ElevenLabs.`)
-    }))
+  writeStreaming("thinking…");
+  fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question: lastTurn.question }),
+  })
+    .then(r => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); })
+    .then(data => {
+      lastTurn.answer = data.answer || "(no response)";
+      writeFinal(lastTurn.answer);
+      lastTurn.done = true;
+      if (followup) followup.focus();
+    })
     .catch(e => fail(e.message));
 }
 
