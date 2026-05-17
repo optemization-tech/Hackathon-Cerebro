@@ -6,6 +6,15 @@ The "second brain" framework has existed for almost a decade, but it's predicate
 
 **[Live Demo](https://hackathon-cerebro.vercel.app/)** | [Full Spec](docs/specs/cerebro.md) | [Build Status](STATUS.md)
 
+<p align="center">
+  <img src="docs/screenshots/home.png" width="48%" alt="Home — ask Cerebro anything" />
+  <img src="docs/screenshots/graph.png" width="48%" alt="Knowledge graph visualization" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/swipe.png" width="48%" alt="Swipe deck — verify what Cerebro learned" />
+  <img src="docs/screenshots/avatar.png" width="48%" alt="HeyGen video avatar — talk to Cerebro" />
+</p>
+
 ---
 
 ## How it works
