@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types lib/cleaning/*.test.ts",
     "setup:hindsight": "op run --env-file=scripts/setup-hindsight.env -- node scripts/setup-hindsight.mjs"
   },
   "dependencies": {
