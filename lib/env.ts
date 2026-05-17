@@ -16,6 +16,8 @@ const envSchema = z.object({
   NOTION_PATTERNS_DB_ID: z.string().min(1),
   NOTION_SIGNALS_DB_ID: z.string().min(1),
   NOTION_GLOSSARY_DB_ID: z.string().min(1),
+  NOTION_OBJECTIVES_DB_ID: z.string().min(1),
+  NOTION_METRICS_DB_ID: z.string().min(1),
 
   // Source DB. Optional — the frontend feed doesn't need it; source workers do.
   NOTION_SHORT_TERM_MEMORY_DB_ID: z.string().optional(),
