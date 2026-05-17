@@ -1970,8 +1970,8 @@ async function mountGraph() {
   const link = g.selectAll(".graph-link").data(edges).join("line")
     .attr("class", d => "graph-link link-" + d.primaryType)
     .attr("marker-end", d => "url(#arrow-" + d.primaryType + ")")
-    .attr("stroke-width", d => 1 + (d.strength || 0) * 5)
-    .attr("opacity", d => 0.12 + (d.strength || 0) * 0.7)
+    .attr("stroke-width", 0.5)
+    .attr("opacity", d => 0.08 + (d.strength || 0) * 0.15)
     .attr("data-s", d => typeof d.source === "object" ? d.source.id : d.source)
     .attr("data-t", d => typeof d.target === "object" ? d.target.id : d.target);
 
@@ -1984,242 +1984,62 @@ async function mountGraph() {
       .on("end", (ev, d) => { if (!ev.active) graphSim.alphaTarget(0); d.fx = null; d.fy = null; })
     );
 
+  const TYPE_COLORS = {
+    person: "#1a1a1a", company: "#6b7280", decision: "#6366f1",
+    insight: "#8b5cf6", signal: "#10b981", pattern: "#f59e0b",
+    strategy: "#ef4444", framework: "#06b6d4"
+  };
+
+  const degree = new Map();
+  edges.forEach(e => {
+    const s = typeof e.source === "object" ? e.source.id : e.source;
+    const t = typeof e.target === "object" ? e.target.id : e.target;
+    degree.set(s, (degree.get(s) || 0) + (e.count || 1));
+    degree.set(t, (degree.get(t) || 0) + (e.count || 1));
+  });
+  const maxDeg = Math.max(...degree.values(), 1);
+
   node.each(function(d) {
     const el = d3.select(this);
-    const focused = d.id === state.graphFocus;
-    const r = 8 + Math.min(d.factCount || 1, 12) * 1.2;
-
-    if (d.type === "person") {
-      el.append("circle").attr("r", r).attr("fill", focused ? "var(--accent)" : "var(--ink)");
-    } else if (d.type === "company") {
-      el.append("rect").attr("width", r * 2).attr("height", r * 2).attr("x", -r).attr("y", -r)
-        .attr("rx", 3).attr("fill", focused ? "var(--accent)" : "var(--ink-soft)");
-    } else if (d.type === "decision") {
-      el.append("rect").attr("width", r * 1.6).attr("height", r * 1.6).attr("x", -r * 0.8).attr("y", -r * 0.8)
-        .attr("transform", "rotate(45)").attr("fill", "var(--accent)");
-    } else {
-      el.append("circle").attr("r", r)
-        .attr("fill", "var(--bg-paper-deep)").attr("stroke", focused ? "var(--accent)" : "var(--ink)")
-        .attr("stroke-width", 1.5);
-    }
-    if (focused) {
-      el.append("circle").attr("class", "focus-ring").attr("r", r + 8);
-    }
+    const deg = degree.get(d.id) || 1;
+    const r = 6 + Math.pow(deg / maxDeg, 0.4) * 40;
+    d._r = r;
+    const color = TYPE_COLORS[d.type] || "#1a1a1a";
+    el.append("circle").attr("r", r).attr("fill", color).attr("opacity", 0.85);
     el.append("text").attr("class", "graph-node-label").attr("y", r + 14)
-      .attr("text-anchor", "middle").text(d.label.length > 20 ? d.label.slice(0, 18) + "..." : d.label);
+      .attr("text-anchor", "middle").text(d.label.length > 18 ? d.label.slice(0, 16) + "..." : d.label);
   });
 
   const canvas = container;
 
-  function eid(d) { return [d.source.id ?? d.source, d.target.id ?? d.target]; }
-
-  function buildAdj() {
-    const adj = new Map();
-    link.each(function(d) {
-      const [s, t] = eid(d);
-      if (!adj.has(s)) adj.set(s, []);
-      if (!adj.has(t)) adj.set(t, []);
-      adj.get(s).push({ to: t, strength: d.strength || 0.3, s, t });
-      adj.get(t).push({ to: s, strength: d.strength || 0.3, s, t });
-    });
-    return adj;
-  }
-
-  let tracePath = [];
-
-  function neighbors(nodeId, adj) {
-    return new Set((adj.get(nodeId) || []).map(n => n.to));
-  }
-
-  const TYPE_COLORS = {
-    person: "#1a1a1a", company: "#6b6b6b", decision: "#4e5ffd",
-    insight: "#8b5cf6", signal: "#059669", pattern: "#d97706",
-    strategy: "#dc2626", framework: "#0891b2"
-  };
-  function nodeColor(id) {
-    const n = nodes.find(n => n.id === id);
-    return n ? (TYPE_COLORS[n.type] || "#1a1a1a") : "#1a1a1a";
-  }
-
-  function renderTrace() {
-    canvas.classList.add("has-hover");
-    const adj = buildAdj();
-    const pathSet = new Set(tracePath);
-    const pathEdges = new Set();
-    const pathEdgeOrder = [];
-    for (let i = 0; i < tracePath.length - 1; i++) {
-      pathEdges.add(tracePath[i] + "|" + tracePath[i + 1]);
-      pathEdges.add(tracePath[i + 1] + "|" + tracePath[i]);
-      pathEdgeOrder.push({ from: tracePath[i], to: tracePath[i + 1] });
-    }
-
-    const tip = tracePath[tracePath.length - 1];
-    const tipNeighbors = neighbors(tip, adj);
-    const frontier = new Set();
-    const frontierEdges = new Set();
-    tipNeighbors.forEach(n => {
-      if (!pathSet.has(n)) {
-        frontier.add(n);
-        frontierEdges.add(tip + "|" + n);
-        frontierEdges.add(n + "|" + tip);
-      }
-    });
-
-    const frontierStrength = new Map();
-    (adj.get(tip) || []).forEach(nb => {
-      if (frontier.has(nb.to)) frontierStrength.set(nb.to, nb.strength);
-    });
-
-    const defs = d3.select("#graph-svg defs");
-    defs.selectAll(".trace-grad").remove();
-    pathEdgeOrder.forEach((pe, i) => {
-      const grad = defs.append("linearGradient").attr("class", "trace-grad").attr("id", "tg-" + i)
-        .attr("gradientUnits", "userSpaceOnUse");
-      grad.append("stop").attr("offset", "0%").attr("stop-color", nodeColor(pe.from));
-      grad.append("stop").attr("offset", "100%").attr("stop-color", nodeColor(pe.to));
-    });
-    (adj.get(tip) || []).forEach((nb, i) => {
-      if (!frontier.has(nb.to)) return;
-      const grad = defs.append("linearGradient").attr("class", "trace-grad").attr("id", "fg-" + i)
-        .attr("gradientUnits", "userSpaceOnUse");
-      grad.append("stop").attr("offset", "0%").attr("stop-color", nodeColor(tip)).attr("stop-opacity", 0.6);
-      grad.append("stop").attr("offset", "100%").attr("stop-color", nodeColor(nb.to)).attr("stop-opacity", 0.2);
-    });
-
-    node.style("opacity", d => {
-      if (pathSet.has(d.id)) return 1;
-      if (frontier.has(d.id)) return 0.3 + (frontierStrength.get(d.id) || 0.3) * 0.5;
-      return 0.04;
-    });
-    node.selectAll("circle, rect").style("transform", function() {
-      const d = d3.select(this.parentNode).datum();
-      if (pathSet.has(d.id)) return "scale(1.3)";
-      if (frontier.has(d.id)) return `scale(${0.9 + (frontierStrength.get(d.id) || 0.3) * 0.3})`;
-      return "scale(0.7)";
-    });
-    node.select(".graph-node-label").style("opacity", function() {
-      const d = d3.select(this.parentNode).datum();
-      if (pathSet.has(d.id)) return 1;
-      if (frontier.has(d.id)) return 0.7;
-      return 0;
-    });
-
-    const frontierList = [...(adj.get(tip) || [])].filter(nb => frontier.has(nb.to));
-
-    link.style("opacity", d => {
-      const [s, t] = eid(d);
-      const k1 = s + "|" + t, k2 = t + "|" + s;
-      if (pathEdges.has(k1) || pathEdges.has(k2)) return 0.9;
-      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 0.12 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 0.35;
-      return 0.015;
-    });
-    link.style("stroke-width", d => {
-      const [s, t] = eid(d);
-      const k1 = s + "|" + t, k2 = t + "|" + s;
-      if (pathEdges.has(k1) || pathEdges.has(k2)) return 4;
-      if (frontierEdges.has(k1) || frontierEdges.has(k2)) return 1 + (frontierStrength.get(s) || frontierStrength.get(t) || 0.3) * 3;
-      return 0.5;
-    });
-    link.each(function(d) {
-      const [s, t] = eid(d);
-      const k1 = s + "|" + t, k2 = t + "|" + s;
-      const el = d3.select(this);
-      let stroke = null;
-      for (let i = 0; i < pathEdgeOrder.length; i++) {
-        const pe = pathEdgeOrder[i];
-        if ((pe.from === s && pe.to === t) || (pe.from === t && pe.to === s)) {
-          stroke = `url(#tg-${i})`;
-          break;
-        }
-      }
-      if (!stroke && (frontierEdges.has(k1) || frontierEdges.has(k2))) {
-        for (let i = 0; i < frontierList.length; i++) {
-          const nb = frontierList[i];
-          if ((nb.s === s && nb.t === t) || (nb.s === t && nb.t === s) || nb.to === s || nb.to === t) {
-            stroke = `url(#fg-${i})`;
-            break;
-          }
-        }
-      }
-      el.style("stroke", stroke);
-    });
-
-    link.each(function(d) {
-      const el = d3.select(this);
-      if (!el.style("stroke") || el.style("stroke") === "null") return;
-      if (el.style("stroke").startsWith("url(#tg-")) {
-        const sx = typeof d.source === "object" ? d.source.x : 0;
-        const sy = typeof d.source === "object" ? d.source.y : 0;
-        const tx = typeof d.target === "object" ? d.target.x : 0;
-        const ty = typeof d.target === "object" ? d.target.y : 0;
-        const [s] = eid(d);
-        const fromIdx = tracePath.indexOf(s);
-        const gradId = el.style("stroke").match(/url\(#(tg-\d+)\)/)?.[1];
-        if (gradId) {
-          const grad = d3.select("#" + gradId);
-          if (fromIdx >= 0) { grad.attr("x1", sx).attr("y1", sy).attr("x2", tx).attr("y2", ty); }
-          else { grad.attr("x1", tx).attr("y1", ty).attr("x2", sx).attr("y2", sy); }
-        }
-      }
-    });
-
-    document.getElementById("entity-panel").innerHTML = renderEntityPanel(tip);
-  }
-
-  function clearTrace() {
-    tracePath = [];
-    canvas.classList.remove("has-hover");
-    node.style("opacity", 1);
-    node.selectAll("circle, rect").style("transform", null);
-    node.select(".graph-node-label").style("opacity", 1);
-    link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7)
-      .style("stroke-width", d => 1 + (d.strength || 0) * 5)
-      .style("stroke", null);
-    state.graphFocus = null;
-    document.getElementById("entity-panel").innerHTML = renderEntityPanel(null);
-  }
-
   node.on("mouseenter", (ev, d) => {
-    if (tracePath.length === 0) {
-      canvas.classList.add("has-hover");
-      const adj = buildAdj();
-      const nb = neighbors(d.id, adj);
-      node.style("opacity", n => n.id === d.id || nb.has(n.id) ? 1 : 0.08);
-      link.style("opacity", e => { const [s, t] = eid(e); return (s === d.id || t === d.id) ? 0.6 : 0.02; });
-    }
+    canvas.classList.add("has-hover");
+    const connected = new Set();
+    link.each(function(e) {
+      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+      if (s === d.id) connected.add(t);
+      if (t === d.id) connected.add(s);
+    });
+    node.style("opacity", n => n.id === d.id || connected.has(n.id) ? 1 : 0.08);
+    link.style("opacity", e => {
+      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+      return (s === d.id || t === d.id) ? 0.6 : 0.02;
+    }).style("stroke-width", e => {
+      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
+      return (s === d.id || t === d.id) ? 2 : 0.5;
+    });
   });
   node.on("mouseleave", () => {
-    if (tracePath.length === 0) {
+    if (!state.graphFocus) {
       canvas.classList.remove("has-hover");
-      node.style("opacity", 1);
-      link.style("opacity", d => 0.12 + (d.strength || 0) * 0.7);
+      node.style("opacity", 0.85);
+      link.style("opacity", d => 0.08 + (d.strength || 0) * 0.15).style("stroke-width", 0.5);
     }
   });
   node.on("click", (ev, d) => {
     ev.stopPropagation();
-    if (tracePath.length === 0) {
-      tracePath = [d.id];
-      state.graphFocus = d.id;
-      renderTrace();
-    } else {
-      const adj = buildAdj();
-      const tip = tracePath[tracePath.length - 1];
-      const nb = neighbors(tip, adj);
-      if (nb.has(d.id) && !new Set(tracePath).has(d.id)) {
-        tracePath.push(d.id);
-        state.graphFocus = d.id;
-        renderTrace();
-      } else if (d.id === tracePath[tracePath.length - 1] && tracePath.length > 1) {
-        tracePath.pop();
-        state.graphFocus = tracePath[tracePath.length - 1];
-        renderTrace();
-      } else {
-        clearTrace();
-        tracePath = [d.id];
-        state.graphFocus = d.id;
-        renderTrace();
-      }
-    }
+    state.graphFocus = d.id;
+    document.getElementById("entity-panel").innerHTML = renderEntityPanel(d.id);
   });
   svg.on("click", (ev) => {
     if (ev.target === svgEl || ev.target.tagName === "svg") clearTrace();
@@ -2236,11 +2056,11 @@ async function mountGraph() {
   });
 
   graphSim = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(edges).id(d => d.id).distance(d => 200 - (d.strength || 0) * 150).strength(d => 0.1 + (d.strength || 0) * 0.6))
-    .force("charge", d3.forceManyBody().strength(-300))
+    .force("link", d3.forceLink(edges).id(d => d.id).distance(100).strength(d => 0.05 + (d.strength || 0) * 0.15))
+    .force("charge", d3.forceManyBody().strength(-400))
     .force("center", d3.forceCenter(W / 2, H / 2))
-    .force("collision", d3.forceCollide().radius(40))
-    .alphaDecay(0.03)
+    .force("collision", d3.forceCollide().radius(d => (d._r || 10) + 8))
+    .alphaDecay(0.025)
     .on("tick", () => {
       link
         .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
@@ -2258,7 +2078,7 @@ async function mountGraph() {
       });
     });
 
-  if (state.graphFocus) { tracePath = [state.graphFocus]; renderTrace(); }
+  if (state.graphFocus) document.getElementById("entity-panel").innerHTML = renderEntityPanel(state.graphFocus);
 }
 
 /* ─── speak (voice-only ElevenLabs) ─── */
