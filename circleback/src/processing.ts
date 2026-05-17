@@ -33,6 +33,54 @@ export function circlebackUUID(meetingId: string): string {
 	return uuidv5(`circleback://${meetingId}`, CEREBRO_NAMESPACE_UUID);
 }
 
+// ===== Person Source resolution =====
+
+const DEFAULT_CIRCLEBACK_HOST_EMAIL = "tem@optemization.com";
+
+export function readCirclebackHostEmail(): string {
+	return process.env.CIRCLEBACK_HOST_EMAIL?.trim() || DEFAULT_CIRCLEBACK_HOST_EMAIL;
+}
+
+/**
+ * Resolve a Notion workspace user ID by email address.
+ * The cache avoids redundant users.list calls across multiple meetings in the
+ * same webhook batch or backfill run.
+ */
+export async function resolvePersonSource(
+	notion: NotionClient,
+	email: string,
+	cache: Map<string, string | null>,
+): Promise<string | null> {
+	const target = email.toLowerCase();
+	if (cache.has(target)) return cache.get(target) ?? null;
+
+	let cursor: string | undefined;
+	try {
+		do {
+			const resp = await notion.users.list({
+				page_size: 100,
+				...(cursor ? { start_cursor: cursor } : {}),
+			});
+			for (const user of resp.results) {
+				if (user.type !== "person") continue;
+				const userEmail = (user as { person?: { email?: string } }).person?.email;
+				if (userEmail && userEmail.toLowerCase() === target) {
+					cache.set(target, user.id);
+					return user.id;
+				}
+			}
+			cursor = resp.has_more && resp.next_cursor ? resp.next_cursor : undefined;
+		} while (cursor);
+	} catch (err) {
+		console.warn(
+			`[circleback] resolvePersonSource(${email}) failed:`,
+			err instanceof Error ? err.message : err,
+		);
+	}
+	cache.set(target, null);
+	return null;
+}
+
 // ===== Glossary normalization =====
 
 export function readGlossaryDataSourceId(): string | null {
@@ -301,6 +349,7 @@ export async function processMeeting(
 	notion: NotionClient,
 	meeting: CirclebackMeeting,
 	glossary: GlossaryEntry[],
+	personSourceUserId?: string | null,
 ): Promise<STMWriteResult> {
 	const content = buildMeetingPageContent(meeting, glossary);
 
@@ -316,12 +365,17 @@ export async function processMeeting(
 		return { id: content.id, pageId: existingPageId, created: false };
 	}
 
+	const properties = { ...content.properties };
+	if (personSourceUserId) {
+		properties["Person Source"] = { people: [{ id: personSourceUserId }] };
+	}
+
 	const page = await notion.pages.create({
 		parent: {
 			type: "data_source_id",
 			data_source_id: SHORT_TERM_MEMORY_DATA_SOURCE_ID,
 		},
-		properties: content.properties as Parameters<typeof notion.pages.create>[0]["properties"],
+		properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
 		markdown: content.markdown,
 	});
 

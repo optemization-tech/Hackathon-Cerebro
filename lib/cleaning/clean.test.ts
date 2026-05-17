@@ -92,6 +92,13 @@ test("Glossary entries with empty aliases array are tolerated", () => {
   assert.equal(result, "Cerebro is live.");
 });
 
+test("clean(): idempotent — already-normalized text is unchanged on second pass", () => {
+  const raw = "Tim met Aar See at Optimization.";
+  const once = clean(raw, SEED);
+  const twice = clean(once, SEED);
+  assert.equal(twice, once);
+});
+
 // ===== uuidv5 stability test =====
 // Verifies the Cerebro uuidv5 implementation produces stable, correctly formatted IDs.
 

@@ -4,6 +4,8 @@ import {
 	extractMeeting,
 	loadGlossaryOnce,
 	processMeeting,
+	readCirclebackHostEmail,
+	resolvePersonSource,
 } from "./processing";
 import type { CirclebackMeetingEvent } from "./processing";
 
@@ -60,6 +62,14 @@ worker.webhook("circlebackEvents", {
 		"Receives Circleback meeting-processed events and writes the transcript into the Short-Term Memory DB after Glossary normalization.",
 	execute: async (events, { notion }) => {
 		const glossary = await loadGlossaryOnce(notion);
+		const userCache = new Map<string, string | null>();
+		const hostEmail = readCirclebackHostEmail();
+		const personSourceUserId = await resolvePersonSource(notion, hostEmail, userCache);
+		if (personSourceUserId) {
+			console.log(`[circleback] Person Source resolved: ${hostEmail} → ${personSourceUserId}`);
+		} else {
+			console.warn(`[circleback] Person Source unresolved for ${hostEmail} — new rows will have no Person Source`);
+		}
 		const results: Array<{ deliveryId: string; status: string; details?: string }> = [];
 
 		for (const event of events) {
@@ -93,7 +103,7 @@ worker.webhook("circlebackEvents", {
 			}
 
 			try {
-				const res = await processMeeting(notion, meeting, glossary);
+				const res = await processMeeting(notion, meeting, glossary, personSourceUserId);
 				console.log(
 					`[circleback] ${res.created ? "created" : "skipped"} ${res.id} → ${res.pageId}`,
 				);
