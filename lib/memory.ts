@@ -13,7 +13,9 @@ export type MemoryType =
   | "INSIGHT"
   | "PATTERN"
   | "SIGNAL"
-  | "GLOSSARY";
+  | "GLOSSARY"
+  | "OBJECTIVE"
+  | "METRIC";
 
 export interface MemoryRecord {
   type: MemoryType;
@@ -42,6 +44,8 @@ const DBS: DbSpec[] = [
   { type: "PATTERN", envKey: "NOTION_PATTERNS_DB_ID" },
   { type: "SIGNAL", envKey: "NOTION_SIGNALS_DB_ID" },
   { type: "GLOSSARY", envKey: "NOTION_GLOSSARY_DB_ID" },
+  { type: "OBJECTIVE", envKey: "NOTION_OBJECTIVES_DB_ID" },
+  { type: "METRIC", envKey: "NOTION_METRICS_DB_ID" },
 ];
 
 type RawProp = { type: string } & Record<string, unknown>;
