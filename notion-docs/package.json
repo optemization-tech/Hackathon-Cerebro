@@ -16,6 +16,7 @@
 		"typescript": "^5.8.0"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.96.0",
 		"@notionhq/workers": ">=0.0.0"
 	}
 }

@@ -66,3 +66,54 @@ For current build status see [`STATUS.md`](STATUS.md). For the spec see [`docs/s
    COMPANIES_DATA_SOURCE_ID=b63f79ed-9f3b-4b7b-8b12-263263ba3d5d
    ```
 5. `ntn workers env push --yes && ntn workers deploy`
+
+---
+
+## Expand Notion DB Hindsight ingest: Tier 2 databases (deferred)
+
+**What:** Seven additional Notion DBs were identified for direct-to-Hindsight ingest but deferred from the Tier 1 backfill (Session 2.11). They can be added to the `notion-docs` worker's `DATABASE_CONFIGS` registry with per-DB preamble builders.
+
+**Deferred DBs:**
+1. **Insights** — extracted insights, learnings, observations
+2. **OKRs** — objectives and key results
+3. **Changelog** — product/service change log entries
+4. **Workflows** — n8n workflow definitions and metadata
+5. **Verified Workflows** — production-validated workflow snapshots
+6. **Brand Guide** — brand identity, voice, visual guidelines
+7. **Deals** — sales pipeline / deal tracking
+
+**Why deferred:** Tier 1 covers the highest-signal DBs (Docs, Discussions, Projects, Engagements, Playbook Core, Tasks). Tier 2 adds breadth but lower urgency. Each DB needs: data source ID resolution, property schema inspection, preamble builder, skip criteria, and a backfill run.
+
+**How to add:**
+1. Resolve the database's data source ID via `ntn datasources resolve <database-id>`.
+2. Add a new entry to `notion-docs/src/databases.ts` → `DATABASE_CONFIGS` array.
+3. Add the corresponding env var (`<DB_NAME>_DATA_SOURCE_ID`) to the deployed worker.
+4. Deploy and trigger backfill: `ntn workers sync trigger <key>Backfill`.
+
+---
+
+## Architecturally excluded: Companies + Contacts → Cerebro Sync Worker
+
+**What:** The Companies and Contacts (People) databases are architecturally excluded from direct Hindsight ingest. They are entity rosters — structured records that should be written to Long-Term Memory via the future Cerebro Sync Worker, not fed as raw text to Hindsight.
+
+**Why:**
+- Companies and Contacts are **entity masters** — their value is in structured fields (name, role, company, email, relationship status), not in page body text.
+- Hindsight's fact extraction works best with narrative/prose content. Feeding it structured roster data would produce low-quality observations ("Alice is at Company X" repeated per row) and waste bank capacity.
+- The Cerebro Sync Worker (not yet built) will receive Hindsight webhooks and write structured records to the People and Companies Long-Term Memory DBs. These entity DBs are its natural output, not Hindsight's input.
+
+**When to revisit:** When the Cerebro Sync Worker is built and the LTM write path is operational. At that point, Companies and Contacts flow through: Notion DB → Sync Worker → LTM DBs (People, Companies). Hindsight learns about people and companies indirectly through briefs, docs, and meeting transcripts that mention them.
+
+---
+
+## Tasks DB granularity: per-task vs aggregated briefs
+
+**What:** The Tasks DB is included in Tier 1 as per-task ingest (each task page retained individually to Hindsight). This may be noisy for large task backlogs. Consider per-project aggregation or weekly summary briefs as an alternative.
+
+**Why:** Individual tasks often have minimal body content (just a title and status). Retaining hundreds of sparse task pages may dilute Hindsight's knowledge graph with low-signal entries. The `minContentLength: 20` threshold in the current config filters the emptiest tasks, but dense task backlogs may still produce noise.
+
+**Alternatives to evaluate:**
+1. **Per-project aggregation** — group tasks by parent project, generate one brief per project summarizing its active tasks.
+2. **Weekly task summaries** — generate one brief per week covering all task status changes.
+3. **Status-filtered** — only retain tasks with status changes in the last 30 days (skip stale/completed).
+
+**When to revisit:** After the first backfill run, check Hindsight recall quality for task-related queries. If task recall is noisy, implement one of the alternatives above.
