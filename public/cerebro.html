@@ -632,9 +632,10 @@
   }
   .deck-card .swipe-indicator.archive {
     left: 24px;
-    color: var(--ink-soft);
-    border-color: var(--ink-soft);
+    color: #E63946;
+    border-color: #E63946;
     transform: rotate(-8deg);
+    text-shadow: 0 0 10px rgba(230, 57, 70, 0.5);
   }
 
   .deck-controls {
@@ -1737,12 +1738,22 @@ function mountReview() {
         fxLayer.appendChild(p);
       }
     } else {
-      // flame rise — characters rise from the bottom of the card area
+      // flame rise — characters rise from the bottom of the card area, fire palette
       const glyphs = ["▲", "░", "▒", "▓", "◢", "◣", "◤", "◥", "△", "⌃"];
+      const firePalette = [
+        { c: "#FFD60A", g: "0 0 8px rgba(255, 214, 10, 0.85), 0 0 18px rgba(255, 140, 0, 0.55)" },
+        { c: "#FF8C42", g: "0 0 8px rgba(255, 140, 66, 0.85), 0 0 18px rgba(255, 80, 0, 0.55)" },
+        { c: "#FF6B35", g: "0 0 8px rgba(255, 107, 53, 0.85), 0 0 18px rgba(230, 50, 0, 0.55)" },
+        { c: "#FF3B30", g: "0 0 8px rgba(255, 59, 48, 0.85), 0 0 18px rgba(200, 30, 0, 0.55)" },
+        { c: "#E63946", g: "0 0 8px rgba(230, 57, 70, 0.85), 0 0 18px rgba(180, 20, 0, 0.55)" },
+      ];
       for (let i = 0; i < COUNT; i++) {
         const p = document.createElement("span");
         p.className = "fx-particle flame";
         p.textContent = glyphs[i % glyphs.length];
+        const hue = firePalette[Math.floor(Math.random() * firePalette.length)];
+        p.style.color = hue.c;
+        p.style.textShadow = hue.g;
         const lateralOffset = (Math.random() - 0.5) * cardRect.width * 0.9;
         const startX = originX + lateralOffset;
         // start near bottom of card
