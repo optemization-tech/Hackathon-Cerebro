@@ -1,9 +1,13 @@
 // Bootstrap the Hindsight Cloud bank for Cerebro.
 //
 // Idempotent: re-running this script reconciles the live bank to match the
-// config in this file. PUT-upserts the bank with `name`, PATCHes the bank
-// config with the missions + dispositions + observations toggle, and creates
-// the four mental models from docs/specs/cerebro.md.
+// config below. PUT-upserts the bank with `name`, PATCHes the bank config with
+// the missions + dispositions + observations toggle + entity_labels + retain
+// chunk/extraction tuning, then ensures every mental model in MENTAL_MODELS
+// exists.
+//
+// Source of truth for the config in this file: docs/specs/cerebro.md and
+// docs/specs/hindsight-configuration.md.
 //
 // Run with:
 //   OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -s op-service-account -a tem -w) \
@@ -36,6 +40,62 @@ const OBSERVATIONS_MISSION = `Track behavioral patterns the team may not have co
 
 const DISPOSITION = { skepticism: 4, literalism: 4, empathy: 3 };
 
+// docs/specs/hindsight-configuration.md → "Entity labels".
+const ENTITY_LABELS = [
+  {
+    key: "unit_type",
+    type: "multi-values",
+    description: "The type(s) of knowledge unit this fact represents.",
+    tag: true,
+    values: [
+      { value: "glossary",  description: "Term, acronym, or nickname with definition." },
+      { value: "people",    description: "Human dossier or interaction history." },
+      { value: "company",   description: "Organization dossier or interaction history." },
+      { value: "agent",     description: "Non-human entity (AI agent, service, automation) dossier." },
+      { value: "task",      description: "Action item or scheduled follow-up with owner and due date." },
+      { value: "project",   description: "Time-bounded work stream grouping actions." },
+      { value: "decision",  description: "What was decided, why, scope, who decided." },
+      { value: "framework", description: "Reusable mental model articulated by a person." },
+      { value: "strategy",  description: "Applied approach with lifecycle state." },
+      { value: "insight",   description: "Conscious cognitive realization, tied to source moment." },
+      { value: "pattern",   description: "Behavioral repetition, often unconscious." },
+      { value: "signal",    description: "Observed indicator: stress marker, friction point, deadline, blocker." },
+    ],
+  },
+  {
+    key: "status",
+    type: "value",
+    description: "Lifecycle state of decisions, strategies, tasks, projects.",
+    optional: true,
+    tag: true,
+    values: [
+      { value: "open",      description: "Active or unresolved." },
+      { value: "closed",    description: "Resolved or completed." },
+      { value: "proposed",  description: "Under consideration." },
+      { value: "in_flight", description: "Currently being executed." },
+      { value: "proven",    description: "Validated by outcomes." },
+      { value: "disproven", description: "Invalidated by outcomes." },
+      { value: "committed", description: "Team has committed to this." },
+      { value: "reversed",  description: "Previously committed, now reversed." },
+      { value: "blocked",   description: "Cannot proceed, waiting on something." },
+    ],
+  },
+  {
+    key: "valence",
+    type: "value",
+    description: "Emotional or directional charge of signals and insights.",
+    optional: true,
+    tag: true,
+    values: [
+      { value: "positive", description: "Favorable indicator." },
+      { value: "negative", description: "Unfavorable indicator or warning." },
+      { value: "neutral",  description: "Informational, no directional charge." },
+    ],
+  },
+];
+
+// Cross-cutting models from the product spec + dimensional additions from
+// docs/specs/hindsight-configuration.md ("Recommended additions").
 const MENTAL_MODELS = [
   {
     id: "team-state",
@@ -66,6 +126,30 @@ const MENTAL_MODELS = [
     name: "Rising Signals",
     source_query:
       "What signals have been mounting across recent meetings, Slack threads, and emails — stress points, friction signals, pending deadlines, anything that suggests the team should pay attention?",
+    max_tokens: 2048,
+    trigger: { refresh_after_consolidation: true },
+  },
+  {
+    id: "people-directory",
+    name: "People Directory",
+    source_query:
+      "Who are the key people Cerebro has seen? For each: name, role, organization, last seen, and notable context. Group Optemization team members separately from external people.",
+    max_tokens: 4096,
+    trigger: { refresh_after_consolidation: true },
+  },
+  {
+    id: "project-status",
+    name: "Project Status",
+    source_query:
+      "What projects is the team working on? For each: lead, status, current workstream, and what's blocked or at risk.",
+    max_tokens: 4096,
+    trigger: { refresh_after_consolidation: true },
+  },
+  {
+    id: "active-tasks",
+    name: "Active Tasks",
+    source_query:
+      "What tasks and follow-ups are outstanding? For each: owner, due date, status, and whether it's overdue or blocked.",
     max_tokens: 2048,
     trigger: { refresh_after_consolidation: true },
   },
@@ -119,6 +203,9 @@ async function updateBankConfig() {
       disposition_skepticism: DISPOSITION.skepticism,
       disposition_literalism: DISPOSITION.literalism,
       disposition_empathy: DISPOSITION.empathy,
+      retain_chunk_size: 3000,
+      retain_extraction_mode: "verbose",
+      entity_labels: ENTITY_LABELS,
     },
   });
 }
@@ -149,7 +236,7 @@ async function main() {
   await upsertBank();
   console.log("  ✓ bank upserted");
 
-  console.log("• PATCH bank config (missions + observations + dispositions)…");
+  console.log("• PATCH bank config (missions + observations + dispositions + entity_labels + retain tuning)…");
   await updateBankConfig();
   console.log("  ✓ config applied");
 
