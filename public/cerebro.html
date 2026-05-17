@@ -2068,19 +2068,8 @@ async function mountGraph() {
 
   node.on("mouseenter", (ev, d) => {
     canvas.classList.add("has-hover");
-    const neighbors = [];
-    link.each(function(e) {
-      const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-      if (s === d.id) neighbors.push({ id: t, strength: e.strength || 0, edge: e });
-      if (t === d.id) neighbors.push({ id: s, strength: e.strength || 0, edge: e });
-    });
-    neighbors.sort((a, b) => b.strength - a.strength);
-    const top = neighbors.slice(0, 5);
-    const topIds = new Set(top.map(n => n.id));
-    const topEdges = new Set(top.map(n => n.edge));
-    node.style("opacity", n => n.id === d.id || topIds.has(n.id) ? 1 : 0.06);
-    link.style("opacity", function(e) { return topEdges.has(e) ? 0.6 : 0.015; })
-      .style("stroke-width", function(e) { return topEdges.has(e) ? 2 : 0.3; });
+    node.style("opacity", n => n.id === d.id ? 1 : 0.15);
+    link.style("opacity", 0.015).style("stroke-width", 0.3);
   });
   node.on("mouseleave", () => {
     if (!state.graphFocus) {
@@ -2092,19 +2081,11 @@ async function mountGraph() {
   function mountPanelListeners() {
     document.querySelectorAll(".fact-item[data-fact-id]").forEach(el => {
       el.addEventListener("mouseenter", () => {
-        const fid = el.dataset.factId;
-        if (!fid) return;
+        const parentId = state.graphFocus;
+        if (!parentId) return;
         canvas.classList.add("has-hover");
-        const matchNodes = new Set();
-        nodes.forEach(n => { if ((n.facts || []).some(f => f.id === fid)) matchNodes.add(n.id); });
-        node.style("opacity", n => matchNodes.has(n.id) ? 1 : 0.08);
-        link.style("opacity", e => {
-          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-          return (matchNodes.has(s) && matchNodes.has(t)) ? 0.6 : 0.02;
-        }).style("stroke-width", e => {
-          const s = e.source.id ?? e.source, t = e.target.id ?? e.target;
-          return (matchNodes.has(s) && matchNodes.has(t)) ? 2 : 0.5;
-        });
+        node.style("opacity", n => n.id === parentId ? 1 : 0.15);
+        link.style("opacity", 0.015).style("stroke-width", 0.3);
         el.classList.add("highlighted");
       });
       el.addEventListener("mouseleave", () => {
