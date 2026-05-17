@@ -532,3 +532,29 @@ Use this pattern to build up a suite of exec calls that covers each tool with re
 ## Commit & Pull Request Guidelines
 - Messages typically use `feat(scope): ...`, `TASK-123: ...`, or version bumps.
 - PRs should describe changes, list commands run, and update examples if behavior changes.
+
+---
+
+## Cerebro: worker-specific notes
+
+### STM Status contract (2026-05-17, Wave 2)
+
+This worker writes rows to the **Short-Term Memory** Notion DB at data source `362a4866-2b25-801c-9ce5-000b30156f9b`. The Cerebro pipeline uses `Status: pending` to signal "ready for the Hindsight Indexer to pick up". Indexer flips to `indexed` on retain success or `failed` on error.
+
+**Legacy `cleaned` rows**: The pre-Wave-2 worker wrote `Status: cleaned`. Those ~2,418 legacy rows are intentionally left alone — the Indexer's `Status = pending` query filter skips them by design. **Do not bulk-flip them.** If we ever want them indexed, run a one-off script that flips `cleaned` → `pending` for a known-good range (the Indexer is idempotent via `document_id`).
+
+**Going forward (this worker):**
+- Every new row this worker creates is `Status: pending`.
+- Every row has `Data Type: Slack message`, an `Entities` JSON blob (`[{text,type}, …]` from `clean()`), and the cleaned body (Glossary-normalized) in the page body.
+- Dedup remains via the existing UUIDv5 hashing of `slack://{teamId}/{channelId}/{ts}` — do not refactor.
+- **No `Source` property:** Wave 1 didn't add Source to STM. The Indexer derives `source:slack` from `Data Type = "Slack message"` instead. If STM gets a Source property in the future, the worker should write `Source: Slack`.
+
+### Glossary normalization
+
+Imports `clean()` + `loadGlossary()` from `./cleaning` (vendored copy of `lib/cleaning/` at repo root). Each sync run:
+
+1. Loads Glossary entries once from the Glossary data source ID (env: `GLOSSARY_DATA_SOURCE_ID`).
+2. For each Slack message: applies Slack-token rewriting (`cleanSlackText`) then `clean(text, glossary)` for canonical-form normalization (e.g. `"Aar See"` → `"RC Willenbrock"`).
+3. Writes the cleaned body and the recognized entities to STM.
+
+If `GLOSSARY_DATA_SOURCE_ID` is unset, the worker logs a warning and writes raw cleaned text with empty entities — the Indexer still indexes those rows.
