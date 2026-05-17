@@ -19,6 +19,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "slack", "google", "workers", "circleback", ".next"]
+  "include": ["next-env.d.ts", "app/**/*.ts", "app/**/*.tsx", "lib/**/*.ts", "scripts/**/*.ts", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
 }
