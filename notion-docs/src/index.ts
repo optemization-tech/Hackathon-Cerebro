@@ -1,6 +1,11 @@
 import type { Client as NotionClient } from "@notionhq/client";
 import { Worker } from "@notionhq/workers";
 import * as Schema from "@notionhq/workers/schema";
+import { j } from "@notionhq/workers/schema-builder";
+import {
+	generateAllBriefs,
+	generateBriefsForDatabase,
+} from "./brief-generator.js";
 import { DATABASE_CONFIGS, type DatabaseConfig } from "./databases.js";
 import {
 	callHindsightRetain,
@@ -278,3 +283,40 @@ for (const dbConfig of DATABASE_CONFIGS) {
 		},
 	});
 }
+
+// --- Brief generation tools (Notion Custom Agent surface) ---
+
+worker.tool("generateBriefs", {
+	title: "Generate Format B Briefs",
+	description:
+		"Generate narrative briefs (Format B) for one or all Tier-1 databases and retain them to Hindsight. Valid databases: discussions, projects, engagements, playbook, tasks. Pass 'all' to run all.",
+	schema: j.object({
+		database: j
+			.string()
+			.describe(
+				"Which database to generate briefs for: discussions, projects, engagements, playbook, tasks, or 'all'",
+			),
+	}),
+	execute: async (input, { notion }) => {
+		const db = input.database.toLowerCase().trim();
+
+		if (db === "all") {
+			const results = await generateAllBriefs(notion);
+			const summary = results
+				.map(
+					(r) =>
+						`${r.dbKey}: ${r.retained} retained, ${r.skipped} skipped, ${r.failed} failed (${r.groups} groups)`,
+				)
+				.join("\n");
+			return `Brief generation complete.\n\n${summary}`;
+		}
+
+		const result = await generateBriefsForDatabase(notion, db);
+		const details = result.results
+			.filter((r) => r.outcome === "retained")
+			.map((r) => `  - ${r.groupLabel} (${r.pageCount} pages)`)
+			.join("\n");
+
+		return `Briefs for ${result.dbKey}: ${result.retained} retained, ${result.skipped} skipped, ${result.failed} failed.\n\nRetained:\n${details}`;
+	},
+});
