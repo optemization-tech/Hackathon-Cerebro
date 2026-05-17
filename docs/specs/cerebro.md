@@ -12,7 +12,7 @@
 
 Cerebro is Optemization's team second brain. **Six source Notion Workers** (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) pull data, clean it via a shared Glossary-normalization library, and write cleaned text into the workspace-level **Short-Term Memory** Notion DB ([already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d)). The Notion-Docs worker watches the org's existing Docs database(s) — for Optemization, [this one](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7). A **Glossary DB** holds aliases ↔ canonical mappings.
 
-A **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new/edited rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank named `optemization-cerebro`. Hindsight does the heavy memory work — fact extraction, entity resolution, observation consolidation, multi-strategy retrieval. A **Cerebro Sync Worker** subscribes to Hindsight's `retain.completed` and `consolidation.completed` webhooks and writes structured records into **Long-Term Memory** — thirteen Notion DBs grouped as dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), intelligence (Insights, Frameworks, Strategies, Patterns, Signals), and measurement (Objectives, Metrics).
+A **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new/edited rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank named `Cerebro`. Hindsight does the heavy memory work — fact extraction, entity resolution, observation consolidation, multi-strategy retrieval. A **Cerebro Sync Worker** subscribes to Hindsight's `retain.completed` and `consolidation.completed` webhooks and writes structured records into **Long-Term Memory** — thirteen Notion DBs grouped as dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), intelligence (Insights, Frameworks, Strategies, Patterns, Signals), and measurement (Objectives, Metrics).
 
 An **Ask Cerebro** Notion Custom Agent answers questions via Hindsight `reflect()`, surfaced through three voice/video Q&A surfaces (Tavus avatar, ElevenLabs voice chat, the Notion agent UI directly) plus a force-directed graph viz on a Next.js page.
 
@@ -77,18 +77,18 @@ External APIs ─►│ Slack │ Granola │ Circleback │ GMail │ GCal │ 
                 ┌──────────────────────────────────────────┐
                 │ Short-Term Memory DB (Notion)            │
                 │ workspace-level · cleaned text in page   │
-                │ content · Status: pending                │
+                │ content · Status: cleaned                │
                 └──────────────────────────────────────────┘
                                  │
                                  │  Hindsight Indexer Worker
                                  │  - 5-min cron
-                                 │  - query Status: pending
+                                 │  - query Status: cleaned
                                  │  - call Hindsight retain()
                                  │  - mark Status: indexed
                                  ▼
                 ┌──────────────────────────────────────────┐
                 │ Hindsight Cloud                          │
-                │ Bank: optemization-cerebro               │
+                │ Bank: Cerebro               │
                 │ fact extraction · entity resolution ·    │
                 │ observation consolidation ·              │
                 │ TEMPR retrieval · mental models          │
@@ -139,7 +139,7 @@ External APIs ─►│ Slack │ Granola │ Circleback │ GMail │ GCal │ 
 | Short-Term Memory DB | Notion | [Already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d) |
 | Glossary DB | Notion | To create (seed ~15 entries) |
 | Hindsight Indexer Worker | Notion Worker (5-min cron) | To build |
-| Hindsight bank `optemization-cerebro` | Hindsight Cloud | To create |
+| Hindsight bank `Cerebro` | Hindsight Cloud | To create |
 | Cerebro Sync Worker (webhook-driven) | Notion Worker (webhook capability) | To build |
 | Long-Term Memory DBs (8 for MVP) | Notion | To create |
 | Ask Cerebro Custom Agent | Notion Custom Agent | To configure with `askCerebro` Worker tool |
@@ -184,7 +184,7 @@ Schemas are defined once here in their forward-compatible form; the **Status** c
 | Data Type | select | `Meeting transcript` / `Slack message` / `Email` / `Calendar event` / `Note`. |
 | Source | select | `Slack` / `Granola` / `Circleback` / `GMail` / `GCal` / `Notion`. |
 | Person Source | person (limit 1) | The Optemization team member whose account this came from. |
-| Status | select | `pending` (source wrote it) / `indexed` (Indexer pushed to Hindsight) / `distilled` (Sync Worker wrote it to Long-Term Memory) / `failed`. |
+| Status | select | `cleaned` (source wrote it) / `indexed` (Indexer pushed to Hindsight) / `distilled` (Sync Worker wrote it to Long-Term Memory) / `failed`. |
 | Created time / Created by | system | Auto. |
 
 **Raw body (cleaned)** is stored as the row's page content (not as a property).
@@ -362,7 +362,7 @@ Cadence: Metrics with steady cadence are KPIs by another name. `ad_hoc` cadence 
 
 ## Source workers (6)
 
-Each source worker is a thin source adapter: pull from external API → parse source-specific format → call shared `clean()` → write to Short-Term Memory with `Status: pending`. They do NOT call Hindsight. They do NOT write to Long-Term Memory.
+Each source worker is a thin source adapter: pull from external API → parse source-specific format → call shared `clean()` → write to Short-Term Memory with `Status: cleaned`. They do NOT call Hindsight. They do NOT write to Long-Term Memory.
 
 | Worker | Status | OAuth | Notes |
 |---|---|---|---|
@@ -417,14 +417,14 @@ A single Notion Worker that bridges Short-Term Memory → Hindsight Cloud. The o
 ### Execution model
 
 - **Schedule:** 5-minute cron (or `continuous` if we want lower latency for the demo).
-- **Query:** Short-Term Memory rows where `Status = pending`. Paginate; cap batch at ~50 per run.
+- **Query:** Short-Term Memory rows where `Status = cleaned`. Paginate; cap batch at ~50 per run.
 - **For each row:**
   1. Read row properties: cleaned page body, `ID`, `Data Type`, `Source`, `Person Source`, `Created time`, `verified:true` if tagged.
   2. Build the tag set from row properties (see "Tagging strategy" below).
-  3. Call Hindsight `retain(bank_id="optemization-cerebro", content=<cleaned body>, document_id=<row id>, tags=<tag set>, context=<Data Type>, timestamp=<Created time>)` with `async: true` so retain runs in Hindsight's background queue. Entity extraction is delegated to Hindsight's LLM.
+  3. Call Hindsight `retain(bank_id="Cerebro", content=<cleaned body>, document_id=<row id>, tags=<tag set>, context=<Data Type>, timestamp=<Created time>)` with `async: false` (sync mode) so Status is flipped to `indexed` only after Hindsight has actually extracted. Entity extraction is delegated to Hindsight's LLM.
   4. On success, flip the row's `Status` to `indexed`.
   5. On failure, flip to `failed` and record the error — retry `failed` rows on a slower schedule.
-- **Idempotency:** `document_id` is the row's Notion page ID. Re-running the Indexer over an already-indexed row is a no-op upsert on Hindsight's side; the Indexer's query filter (`Status = pending` or `failed`) skips them by default.
+- **Idempotency:** `document_id` is the STM `ID` property value (deterministic per source worker). Re-running the Indexer over an already-indexed row is a no-op upsert on Hindsight's side; the Indexer's query filter (`Status = cleaned`) skips `indexed` and `failed` rows by default.
 
 ### Tagging strategy (every `retain` call)
 
@@ -444,10 +444,10 @@ Recall is scoped naturally: `tags=["engagement:aivc"]` → only AIVC. `tags=["ve
 
 - One place to manage Hindsight credentials, rate limits, and the `retain()` integration shape.
 - Source workers don't need to know about Hindsight — testable in isolation against a Notion mock.
-- Backfill is trivial: reset a range of Short-Term Memory rows to `Status: pending` and the Indexer re-processes them.
+- Backfill is trivial: reset a range of Short-Term Memory rows to `Status: cleaned` and the Indexer re-processes them.
 - Migrating off Hindsight later means rewriting one Worker, not six.
 
-## The Hindsight bank: `optemization-cerebro`
+## The Hindsight bank: `Cerebro` (bank ID: `Cerebro`, namespace: `default`)
 
 One bank for V1. Tags handle scoping. Multi-bank options live in the [product scope](#bank-architecture-options).
 
@@ -502,7 +502,7 @@ The Indexer passes `document_id = <Short-Term Memory page ID>` on every `retain`
 
 ## Cerebro Sync Worker (webhook-driven)
 
-A Notion Worker with a webhook capability. Subscribed to Hindsight Cloud webhooks for the `optemization-cerebro` bank.
+A Notion Worker with a webhook capability. Subscribed to Hindsight Cloud webhooks for the `Cerebro` bank.
 
 > **Cloud webhook caveat (2026-05-16).** Hindsight Cloud's `CreateWebhookRequest.event_types` only accepts `consolidation.completed` today — `retain.completed` is documented but not yet emitted by the Cloud API. Until that lands, the `retain.completed` handler below runs on a 5-minute cron in the Sync Worker, polling Short-Term Memory for rows with `Status: indexed` and treating each one as if a webhook had fired. Same handler logic, just pull-driven. When Cloud ships `retain.completed`, register the webhook and delete the poller — no other change needed.
 
@@ -535,7 +535,7 @@ Available in the Notion UI for free. Single Worker tool:
 
 | Tool | Purpose |
 |---|---|
-| `askCerebro(question, scope?)` | Calls Hindsight `reflect()` against the `optemization-cerebro` bank. Returns `{ answer, based_on: [fact_ids] }`. Citations are looked up via `relatedMemories` and presented as clickable Short-Term Memory links. |
+| `askCerebro(question, scope?)` | Calls Hindsight `reflect()` against the `Cerebro` bank. Returns `{ answer, based_on: [fact_ids] }`. Citations are looked up via `relatedMemories` and presented as clickable Short-Term Memory links. |
 
 The agent prompt biases toward citation. The bank's `mission` + `disposition` already shape voice — Ask Cerebro inherits this.
 
@@ -558,7 +558,7 @@ ElevenLabs hosted UI. Their conversational agent has a tool registered: HTTP POS
 Internals:
 
 1. Receive question.
-2. Call Hindsight `reflect(bank_id="optemization-cerebro", query=question, include_facts=true, budget="mid", tags=<scope tags>)`.
+2. Call Hindsight `reflect(bank_id="Cerebro", query=question, include_facts=true, budget="mid", tags=<scope tags>)`.
 3. Stream the answer tokens back (Tavus/ElevenLabs both want streaming).
 4. From the response's `based_on.memories`, look up the source Short-Term Memory pages via the `stm:<page-id>` tags and return them as citations.
 
@@ -566,7 +566,7 @@ Internals:
 
 ## Demo flow (3 minutes)
 
-1. **Setup (~20s):** "We legibilized Optemization. Six source Workers writing into Notion's Short-Term Memory after cleaning each input against the org's Glossary. One Indexer Worker pushing that into Hindsight Cloud. One Sync Worker reading Hindsight's insights back into Long-Term Memory. Two Custom Agents. Six Long-Term Memory DBs. All on Notion's Developer Platform with Hindsight as the memory engine." Show Short-Term Memory ticking forward (a Slack message just landed, Status flipping from `pending` → `indexed` → `distilled`), Long-Term Memory populated.
+1. **Setup (~20s):** "We legibilized Optemization. Six source Workers writing into Notion's Short-Term Memory after cleaning each input against the org's Glossary. One Indexer Worker pushing that into Hindsight Cloud. One Sync Worker reading Hindsight's insights back into Long-Term Memory. Two Custom Agents. Six Long-Term Memory DBs. All on Notion's Developer Platform with Hindsight as the memory engine." Show Short-Term Memory ticking forward (a Slack message just landed, Status flipping from `cleaned` → `indexed` → `distilled`), Long-Term Memory populated.
 2. **The avatar (~60s):** Open the Tavus avatar page. Ask "What did RC commit to with us last week?" Avatar speaks back; citations populate the side panel; click a citation to jump into the Short-Term Memory entry in Notion.
 3. **Voice (~30s):** Switch to ElevenLabs hosted chat. Ask "What's the team feeling about Asana vs Linear right now?" — Hindsight pulls Signals + Insights, reflects, speaks back. Same backend, different surface.
 4. **Graph (~40s):** Open the graph viz. Force-directed layout of people ↔ decisions ↔ signals/insights. Click RC's node — side panel shows his interaction history, recent decisions, signals around him.
@@ -576,12 +576,12 @@ Internals:
 
 ### Must ship (demo-critical)
 
-- Short-Term Memory DB (already created) — extend Source + Data Type options, confirm `Status` select works (`pending` / `indexed` / `distilled` / `failed`).
+- Short-Term Memory DB (already created) — extend Source + Data Type options, confirm `Status` select works (`cleaned` / `indexed` / `distilled` / `failed`).
 - **Glossary DB** with ~15 seed entries (team members, AIVC, RC, key clients, common acronyms).
 - **Shared cleaning library** (`clean(content, glossary)`) — TypeScript module imported by source workers.
-- Hindsight Cloud bank `optemization-cerebro` configured with the JSON above. Mental models populated and refreshing.
+- Hindsight Cloud bank `Cerebro` configured with the JSON above. Mental models populated and refreshing.
 - **3 source workers running for real on Optemization's data:** Slack (already in flight) + Granola or Circleback (one meeting source) + Notion-Docs (watching [the Optemization Docs DB](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7)). Each calls the cleaning library and writes to Short-Term Memory only.
-- **Hindsight Indexer Worker** running on a 5-min cron, polling Short-Term Memory `Status: pending`, calling Hindsight `retain()` with cleaned body + tags, marking `Status: indexed`.
+- **Hindsight Indexer Worker** running on a 5-min cron, polling Short-Term Memory `Status: cleaned`, calling Hindsight `retain()` with sync mode, marking `Status: indexed` only after extraction completes.
 - **Cerebro Sync Worker** subscribed to Hindsight webhooks, writing into 8 Long-Term Memory DBs (the 6 original MVP + Objectives + Metrics).
 - Ask Cerebro Custom Agent with `askCerebro` Worker tool.
 - **Both Tavus and ElevenLabs surfaces working**, hitting the same `/api/ask`.
@@ -620,7 +620,7 @@ Everything beyond the hackathon demo. The hackathon scope above is the V1 milest
 
 ### Phase 1: Hindsight Cloud (hackathon → first months)
 
-- One bank: `optemization-cerebro`
+- One bank: `Cerebro` (namespace: `default`)
 - [Hindsight Cloud](https://hindsight.vectorize.io) hosted (zero infra ops)
 - Six source workers write to Notion Short-Term Memory after cleaning via shared library; the Indexer Worker bridges Notion → Hindsight `retain()` on a 5-minute cron
 - Cerebro Sync Worker subscribed to Hindsight webhooks; writes into Long-Term Memory
@@ -660,7 +660,7 @@ Until one of these fires, vanilla self-hosted is the right answer. Cerebro's def
 
 | Option | When |
 |---|---|
-| **Single workspace bank** (`optemization-cerebro`) | Default. Tags handle scoping. Hackathon through ~6 months. |
+| **Single workspace bank** (`Cerebro`, namespace `default`) | Default. Tags handle scoping. Hackathon through ~6 months. |
 | **Per-engagement bank** | When extraction quality suffers from over-broad mission, or when we sell to clients (each client gets a bank tuned for their org). Bank per AIVC/PicnicHealth/Bellesa/etc. |
 | **Per-person bank** | Single-player mode. Each Optemization team member has their own bank scoped to their own data. Useful for privacy-conscious users and as a B2C-lite offering. |
 | **Hybrid** | Workspace bank + per-engagement banks. A routing layer (Notion Worker or Cerebro Distiller) decides where each retain lands. Probably the long-term answer at scale. |
@@ -786,10 +786,10 @@ Defer until V1.5 traction is clear.
 | Glossary DB | The Notion DB of aliases ↔ canonical terms ↔ entity types. Read by the shared cleaning library. MUST-ship for V1 with ~15 seed entries. |
 | Cleaning library | Shared TypeScript module imported by every source worker. Exposes `clean(content, glossary)` returning a normalized `string` (alias → canonical term substitution only; no entity extraction). Lives in the workers codebase. |
 | Hindsight | [hindsight.vectorize.io](https://hindsight.vectorize.io) — the biomimetic memory system we use as the memory engine. Open-source on [GitHub](https://github.com/vectorize-io/hindsight); V1 uses Hindsight Cloud (managed). |
-| Bank | A Hindsight memory bank. V1 uses one: `optemization-cerebro`. |
+| Bank | A Hindsight memory bank. V1 uses one: bank ID `Cerebro`, namespace `default`. |
 | Source Worker | One of the six Notion Workers (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) that pulls from an external API, parses it, cleans via the shared library, and writes to Short-Term Memory. Doesn't talk to Hindsight. |
 | Notion-Docs source worker | The 6th source worker. Watches the org's existing Docs database(s) — for Optemization, [the main Docs DB](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7). Ingests human-authored, verified content. Tagged `verified:true` so Hindsight can weight it higher. |
-| Hindsight Indexer Worker | The single Notion Worker that polls Short-Term Memory for `Status: pending` rows and calls Hindsight `retain()`. The only thing in the system that talks to Hindsight on ingest. |
+| Hindsight Indexer Worker | The single Notion Worker that polls Short-Term Memory for `Status: cleaned` rows and calls Hindsight `retain()`. The only thing in the system that talks to Hindsight on ingest. |
 | Cerebro Sync Worker | The Notion Worker (webhook capability) that receives Hindsight events (`retain.completed`, `consolidation.completed`) and writes to Long-Term Memory. The only thing that writes to Long-Term Memory. |
 | Cerebro Distiller | The Notion Custom Agent for human-in-the-loop refinement of Long-Term Memory rows. Optional for V1. |
 | Ask Cerebro | The Notion Custom Agent that answers user questions via Hindsight `reflect()`. |
