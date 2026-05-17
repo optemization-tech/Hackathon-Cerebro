@@ -12,7 +12,7 @@
 
 Cerebro is Optemization's team second brain. **Six source Notion Workers** (Slack, Granola, Circleback, GMail, GCal, Notion-Docs) pull data, clean it via a shared Glossary-normalization library, and write cleaned text into the workspace-level **Short-Term Memory** Notion DB ([already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d)). The Notion-Docs worker watches the org's existing Docs database(s) — for Optemization, [this one](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7). A **Glossary DB** holds aliases ↔ canonical mappings.
 
-A **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new/edited rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank named `optemization-cerebro`. Hindsight does the heavy memory work — fact extraction, entity resolution, observation consolidation, multi-strategy retrieval. A **Cerebro Sync Worker** subscribes to Hindsight's `retain.completed` and `consolidation.completed` webhooks and writes structured records into **Long-Term Memory** — eleven Notion DBs grouped as dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), and intelligence (Frameworks, Strategies, Insights, Patterns, Signals).
+A **Hindsight Indexer Worker** polls Short-Term Memory on a 5-minute cron and feeds new/edited rows into a [Hindsight Cloud](https://hindsight.vectorize.io) memory bank named `optemization-cerebro`. Hindsight does the heavy memory work — fact extraction, entity resolution, observation consolidation, multi-strategy retrieval. A **Cerebro Sync Worker** subscribes to Hindsight's `retain.completed` and `consolidation.completed` webhooks and writes structured records into **Long-Term Memory** — thirteen Notion DBs grouped as dossiers (People, Companies, Agents), actions (Projects, Tasks, Decisions), intelligence (Insights, Frameworks, Strategies, Patterns, Signals), and measurement (Objectives, Metrics).
 
 An **Ask Cerebro** Notion Custom Agent answers questions via Hindsight `reflect()`, surfaced through three voice/video Q&A surfaces (Tavus avatar, ElevenLabs voice chat, the Notion agent UI directly) plus a force-directed graph viz on a Next.js page.
 
@@ -110,9 +110,10 @@ External APIs ─►│ Slack │ Granola │ Circleback │ GMail │ GCal │ 
                                  │
                                  ▼
                 ┌──────────────────────────────────────────┐
-                │ Long-Term Memory (Notion, 11 DBs)        │
-                │ MVP (6):  People · Decisions · Insights  │
+                │ Long-Term Memory (Notion, 13 DBs)        │
+                │ MVP (8):  People · Decisions · Insights  │
                 │           · Signals · Projects · Tasks   │
+                │           · Objectives · Metrics         │
                 │ Stretch:  Companies · Strategies         │
                 │ Deferred: Agents · Frameworks · Patterns │
                 │ Every row → `Captured From` →            │
@@ -140,7 +141,7 @@ External APIs ─►│ Slack │ Granola │ Circleback │ GMail │ GCal │ 
 | Hindsight Indexer Worker | Notion Worker (5-min cron) | To build |
 | Hindsight bank `optemization-cerebro` | Hindsight Cloud | To create |
 | Cerebro Sync Worker (webhook-driven) | Notion Worker (webhook capability) | To build |
-| Long-Term Memory DBs (6 for MVP) | Notion | To create |
+| Long-Term Memory DBs (8 for MVP) | Notion | To create |
 | Ask Cerebro Custom Agent | Notion Custom Agent | To configure with `askCerebro` Worker tool |
 | Q&A API (`/api/ask`) | Next.js on Vercel | To build |
 | Tavus avatar page (`/avatar`) | Next.js on Vercel | To build |
@@ -159,11 +160,12 @@ Why this split:
 
 ## Data model
 
-Thirteen databases total: two ingest-layer (Short-Term Memory + Glossary) + eleven Long-Term Memory DBs. The eleven Long-Term Memory DBs split into three groups by **what each row represents**:
+Fifteen databases total: two ingest-layer (Short-Term Memory + Glossary) + thirteen Long-Term Memory DBs. The thirteen LTM DBs split into four groups by **what each row represents**:
 
 - **Dossier DBs** — *who*. One row per **entity**: a person, a company, or an AI agent. Each row is a single, persistent file folder that Cerebro keeps adding to over time. The "RC Willenbrock" dossier gets new entries every time RC shows up in a Granola transcript, a Slack thread, or an email — all merged into one record with citations back to the source. Same shape for companies (the "AIVC" dossier accumulates every mention of AIVC across all our work) and agents (the "Granola" dossier accumulates everything we know about how Granola behaves as a tool — its capabilities, its quirks, what we use it for, what's broken about it).
 - **Action DBs** — *what the team does*. Time-bounded events with owners: projects start and finish, tasks get assigned and completed, decisions get made and sometimes reversed. Actions reference entities from the Dossier layer ("Tem committed to delivering X for AIVC by Friday").
-- **Intelligence DBs** — *what Cerebro learns*. Patterns, signals, frameworks, insights, and strategies that emerge from observing actions over time. Some are human-authored in the moment (Insights, Strategies); others are inferred by Cerebro from observation consolidation (Patterns, Signals).
+- **Intelligence DBs** — *what the team knows and what Cerebro notices*. Five DBs split across descriptive lenses (Insights, Frameworks, Patterns), prescriptive bets (Strategies), and the attentional event log (Signals).
+- **Measurement DBs** — *what the team commits to and how we measure progress*. Bounded targets (Objectives) and the durable measurement entities they track (Metrics).
 
 Why "dossier" and not "profile" or "record"? A dossier is something a third party assembles about a subject by accumulating evidence from many sources — that's exactly what Cerebro does. A profile is something the subject writes about themselves; Cerebro doesn't have that.
 
@@ -246,15 +248,112 @@ Post-hackathon, Glossary grows via manual additions and (Phase 1.5+) an LLM-assi
 
 ### Long-Term Memory — Intelligence DBs
 
-Five intel DBs. Boundaries blur — tightened below.
+Five DBs that capture what the team knows and what Cerebro notices. The split:
 
-| DB | Status | Authored by | Concept |
+- **Insights, Frameworks, Patterns** are **descriptive** — they describe how things are. Humans articulate Insights in the moment; Frameworks are Insights or Patterns that have been named and deliberately adopted as reusable lenses; Patterns are repetitions Cerebro infers from many facts.
+- **Strategies** are **prescriptive** — deliberate bets the team makes about what to do, often as applications of a Framework.
+- **Signals** are **attentional** — the event log of everything worth noticing, including both raw observations and meta-events Cerebro emits when its own structured-knowledge graph transitions.
+
+#### The four axes
+
+| | Author | Shape | Lifetime | The test |
+|---|---|---|---|---|
+| **Insight** | Human, in the moment | A statement of realization | Ephemeral — could be wrong | "I just realized that X" |
+| **Framework** | Human, articulated + deliberately adopted | A *named* lens (has a title) | Durable — persists across projects | The team uses the name to describe new situations |
+| **Strategy** | Human, deliberately proposed | A hypothesis + applied approach | Bounded — has a verdict | "Let's try X to achieve Y, because Framework Z says…" |
+| **Signal** | Cerebro, observed or emitted | One atomic event | Pointlike — snapshot at a moment | Visible in a single source, or fired by a Cerebro transition |
+| **Pattern** | Cerebro, inferred | Aggregate across many facts | Durable — strengthens with evidence | Requires multiple data points to make the claim |
+
+#### Signal sub-types
+
+Signals are the team's attention feed. Two sub-types, distinguished by a `Kind` controlled-vocabulary property:
+
+**Source signals** — observations extracted directly from raw data.
+- `source_observation` — qualitative observation. *"AIVC's response time slowed 30% after the missed milestone."*
+- `metric_reading` — a quantitative datapoint that updates a Metric. *"AIVC NPS measured at 7.2 on 2026-05-15."* References the parent Metric row.
+
+**Meta signals** — fired by Cerebro's own structured-knowledge transitions.
+- `pattern_emerged` — a new Pattern just crystallized after enough supporting facts.
+- `framework_candidate` — Cerebro suggests an Insight or Pattern is durable enough to be named as a Framework. Human accepts → Framework row created. Decline → Signal stays as record.
+- `framework_applied` — a Strategy was created that applies an existing Framework.
+- `framework_pattern_contradiction` — a Pattern contradicts an in-flight Framework. High severity.
+- `strategy_verdict` — a Strategy got its verdict (`proven` / `disproven`).
+- `pattern_recognized_by_human` — a human articulated an Insight that recognizes a Pattern Cerebro had already inferred. The "Cerebro told me about myself" moment.
+- `objective_at_risk` — a metric reading crossed an Objective threshold in the wrong direction.
+
+The `Kind` enum is a **closed controlled vocabulary**, seeded with the values above and customized per workspace at onboarding. New kinds get added deliberately, not invented by the LLM at extraction time.
+
+#### The promotion ladder
+
+Cerebro suggests; humans decide. Cerebro never auto-creates a Framework or Strategy.
+
+```
+Insight  ──┐
+           ├─→ (Cerebro emits `framework_candidate` Signal after threshold) ─→ human accepts ─→ Framework row
+Pattern  ──┘                                                                 ─→ human declines ─→ Signal stays as record
+
+Framework + a specific situation ─→ human proposes ─→ Strategy
+Strategy + bounded target        ─→ Objective(s)
+Metric updates (Signals of kind `metric_reading`) ─→ Objective verdict ─→ Signal of kind `strategy_verdict`
+```
+
+#### Multi-typing
+
+`unit_type` is `multi-values` in the Hindsight bank — one fact can carry `[insight, signal]` (a realization that's also a noticing event) or `[framework, strategy]` (an articulated lens deliberately operationalized). On the Notion projection side, the Sync Worker upserts one row in each matching LTM DB, cross-linked via relations. The Hindsight knowledge graph stays a single entity; Notion is the human-readable projection.
+
+#### Canonical worked example: "scope delivery as trust recovery"
+
+Take RC's actual phrase: *"Scope delivery is a trust recovery mechanism."* The chain across LTM:
+
+| # | DB | Author | Captures |
 |---|---|---|---|
-| **Insights** | Must (V1) | Human (in-the-moment) | Conscious aha moments tied to a specific moment. Ephemeral. Insight → Framework happens when articulated enough times that it becomes a reusable lens. Fields: Statement, Realized By (→ Person), Realized At, `Captured From`. |
-| **Signals** | Must (V1) | Cerebro (observed) | Observed indicators — warnings, alerts, deadlines, leading indicators across functions. Fields: Signal, Valence (`positive`/`negative`/`neutral`), Severity, Topic, `Captured From`. |
-| **Strategies** | Stretch (V1) / Must (V1.1) | Human (proposed) | Applied approaches. State: `proposed` / `in-flight` / `proven` / `disproven`. Hypothesis, Applies To (→ Projects/Companies), Outcome, `Captured From`. |
-| **Frameworks** | Deferred (V1.1+) | Human (articulated) | Reusable mental models. "X is just Y." A lens you reach for again. Durable. Example: "Scope delivery is a trust recovery mechanism" (RC). Fields: Name, Statement, Originator (→ Person), Cited By (`Captured From` rollup). |
-| **Patterns** | Deferred (V1.1+) | Cerebro (inferred) | Behavioral repetition the subjects may not have noticed. *Cerebro tells you about yourself.* Maps directly from Hindsight observations — every consolidated observation becomes (or updates) a Pattern row. Fields: Name, Description, Subjects (→ People/Companies), Evidence Count, First/Last Observed, `Captured From`. |
+| 1 | **Insight** | RC, in a 2025 AIVC meeting | "Just realized the way out of a trust deficit isn't promises — it's over-delivered scope." `Realized By: RC` |
+| 2 | **Signal** (`framework_candidate`) | Cerebro, after RC has articulated this 4× | Suggests promotion of Insight #1 to a Framework. Tem accepts. |
+| 3 | **Framework** | RC + Tem (originator + adopter) | "Scope delivery as trust recovery — when trust is damaged, over-deliver on scope, never over-promise." `Originator: RC`, `Promoted From: Insight #1` |
+| 4 | **Strategy** | Tem, proposed for AIVC | "Ship the Tavus avatar before the voice surface — it's the visible scope marker." `Applies Framework: #3`, `Applies To: AIVC engagement`, `Status: in_flight` |
+| 5 | **Objective** | Tem, set for AIVC | "AIVC contract renewal at 1.5× ARR by Sept 30." `Strategy: #4`, `Measures: AIVC ARR Metric` |
+| 6 | **Metric** | Tem, created at engagement start | "AIVC ARR" — durable measurement entity. `Cadence: monthly`, `Measures Objective: #5` |
+| 7 | **Signal** (`metric_reading`) | Cerebro, monthly | "AIVC ARR = $X on date Y." References Metric #6. |
+| 8 | **Signal** (`strategy_verdict`) | Cerebro, when #4 resolves | "Strategy #4 outcome: proven — avatar shipped, AIVC engagement renewed." |
+| 9 | **Pattern** | Cerebro, inferred across 3+ engagements | "Optemization slips on demo-critical milestones the week before delivery." `Subjects: Optemization team` |
+
+Same root reality. Nine artifacts, each with its own role in the graph.
+
+#### Blur cases — disambiguation rules
+
+1. **Insight has been said five times — Framework yet?** Not automatically. Cerebro emits a `framework_candidate` Signal. Human deliberately accepts → Framework row created. Decline → Signal stays as record. Framework promotion is always a human decision.
+2. **Cerebro inferred a Pattern; the human then articulates the same realization.** Both rows: the Pattern stays; a new Insight captures the human's statement. A `pattern_recognized_by_human` Signal links them. This is the high-value moment — surface in the attention feed.
+3. **Strategy without verdict yet.** Still a Strategy. Status `proposed` or `in_flight`. Verdict (`proven`/`disproven`) is a status transition, not a different DB. `Applies Framework` is optional — ad-hoc strategies don't need one.
+4. **Pattern → Framework promotion.** Same as #1. Cerebro emits `framework_candidate`; human decides.
+5. **Framework in flight + contradicting Pattern.** A `framework_pattern_contradiction` Signal fires, references both. High severity. Both rows stay; the Signal surfaces the tension.
+6. **Signal recurs — does it become a Pattern?** No. Signals stay individual. A Pattern is a separate aggregate row that references the constituent Signals via an `Evidence Signals` relation. Patterns are second-order; Signals are first-order.
+
+#### Schemas
+
+| DB | Status | Schema |
+|---|---|---|
+| **Insights** | Must (V1) | Statement, Realized By (→ Person), Realized At, Recognizes Pattern (→ Pattern, optional), `Captured From`. |
+| **Signals** | Must (V1) | Statement, Kind (closed enum, see above), Valence (`positive`/`negative`/`neutral`), Severity (`low`/`medium`/`high`), Topic, References (→ Framework/Pattern/Strategy/Objective/Metric, optional), `Captured From`. |
+| **Strategies** | Stretch (V1) / Must (V1.1) | Title, Hypothesis, Applies Framework (→ Framework, optional), Applies To (→ Projects/Companies), Status (`proposed`/`in_flight`/`proven`/`disproven`), Outcome, Verdict Date, `Captured From`. |
+| **Frameworks** | Deferred (V1.1+) | Name, Statement, Originator (→ Person), Promoted From (→ Insight/Pattern), Cited By (`Captured From` rollup). |
+| **Patterns** | Deferred (V1.1+) | Name, Description, Subjects (→ People/Companies), Evidence Signals (→ Signal rollup), Evidence Count, First/Last Observed, `Captured From`. |
+
+### Long-Term Memory — Measurement DBs
+
+Two DBs that quantify the team's bets. Separated from Intelligence because they're not lenses or observations — they're *commitments and the rulers that measure them*.
+
+| DB | Status | Authored by | Schema |
+|---|---|---|---|
+| **Objectives** | Must (V1) | Human (committed to) | Title, Kind (`objective`/`key_result`), Parent Objective (→ Objective, for KRs), Target Value, Target Date, Measured Outcome, Verdict (`hit`/`missed`/`in_flight`/`abandoned`), Applies To (→ Strategy/Framework/Project/Company), Measures (→ Metric), `Captured From`. |
+| **Metrics** | Must (V1) | Human (defined) | Name, Definition, Unit, Cadence (`daily`/`weekly`/`monthly`/`quarterly`/`ad_hoc`), Current Value, Last Updated, Source (`Mercury`/`Slack`/`Notion-Docs`/`manual`/etc.), Measures Objective (→ Objective), Measures Framework (→ Framework, optional), Trend Pattern (→ Pattern, when one emerges), `Captured From`. |
+
+Key relations across Intelligence ↔ Measurement:
+
+- **Objective → Metric**: the metric this Objective is measured against. "AIVC NPS ≥ 8 by Sept 30" measures the "AIVC NPS" Metric.
+- **Metric → Pattern**: when readings accumulate into a clear trend (rising / falling / volatile), Cerebro creates a Pattern row and links the Metric to it.
+- **Metric readings**: each measurement is a Signal of `Kind: metric_reading` that references the parent Metric row.
+
+Cadence: Metrics with steady cadence are KPIs by another name. `ad_hoc` cadence is for one-off measurements taken to verdict a specific Objective.
 
 ### Cross-cutting
 
@@ -486,7 +585,7 @@ Internals:
 - Hindsight Cloud bank `optemization-cerebro` configured with the JSON above. Mental models populated and refreshing.
 - **3 source workers running for real on Optemization's data:** Slack (already in flight) + Granola or Circleback (one meeting source) + Notion-Docs (watching [the Optemization Docs DB](https://www.notion.so/optemization/7770dd47209b49098dad46ec0d4dcb3b?v=115e42e1e0cc42a1ba4ffdee205cbba7)). Each calls the cleaning library and writes to Short-Term Memory only.
 - **Hindsight Indexer Worker** running on a 5-min cron, polling Short-Term Memory `Status: pending`, calling Hindsight `retain()` with cleaned body + entities + tags, marking `Status: indexed`.
-- **Cerebro Sync Worker** subscribed to Hindsight webhooks, writing into 6 Long-Term Memory DBs.
+- **Cerebro Sync Worker** subscribed to Hindsight webhooks, writing into 8 Long-Term Memory DBs (the 6 original MVP + Objectives + Metrics).
 - Ask Cerebro Custom Agent with `askCerebro` Worker tool.
 - **Both Tavus and ElevenLabs surfaces working**, hitting the same `/api/ask`.
 - **Graph viz page** rendering People ↔ Decisions ↔ Signals/Insights with clickable Short-Term Memory citations.
@@ -553,7 +652,7 @@ Everything beyond the hackathon demo. The hackathon scope above is the V1 milest
 
 Specific triggers — not before:
 
-1. **Extraction-prompt customization.** When we want Hindsight's LLM to emit Cerebro's 11 categories natively (Decision/Insight/Pattern/Signal/...) instead of generic facts we post-classify. Saves real LLM tokens at scale.
+1. **Extraction-prompt customization.** When we want Hindsight's LLM to emit Cerebro's 13 categories natively (Decision/Insight/Pattern/Signal/Objective/Metric/...) instead of generic facts we post-classify. Saves real LLM tokens at scale.
 2. **Write-back primitive.** When humans editing a Person row in Notion needs to propagate back into Hindsight's entity graph cleanly, and we can't get that via the public API.
 3. **Custom retrieval strategy.** When TEMPR (semantic + BM25 + graph + temporal) isn't enough and we want a 5th — e.g. an `engagement` strategy that traverses Notion's relational graph alongside Hindsight's.
 4. **On-prem for a specific client.** When AIVC (or similar) wants Cerebro inside their VPC with no outbound network. Vanilla Helm gets us 95% there; the last 5% might need code changes.
@@ -659,8 +758,8 @@ Defer until V1.5 traction is clear.
 
 | Milestone | Target date | Scope |
 |---|---|---|
-| **V1 (hackathon)** | 2026-05-17 | 3 sources running, 6 Long-Term Memory DBs, both voice/video surfaces, graph viz, Hindsight Cloud bank. See [hackathon scope](#hackathon-scope-v1--what-ships-by-sunday-demo) above. |
-| **V1.1** | end of May 2026 | All 6 sources running (Slack + Granola + Circleback + GMail + GCal + Notion-Docs). All 11 Long-Term Memory DBs populated. Mental model dashboards visible in the graph viz. Multi-Docs-DB support. |
+| **V1 (hackathon)** | 2026-05-17 | 3 sources running, 8 Long-Term Memory DBs (the 6 original MVP + Objectives + Metrics), both voice/video surfaces, graph viz, Hindsight Cloud bank. See [hackathon scope](#hackathon-scope-v1--what-ships-by-sunday-demo) above. |
+| **V1.1** | end of May 2026 | All 6 sources running (Slack + Granola + Circleback + GMail + GCal + Notion-Docs). All 13 Long-Term Memory DBs populated. Mental model dashboards visible in the graph viz. Multi-Docs-DB support. |
 | **V1.5** | June–July 2026 | RC (AIVC) onboarded as design partner. Per-engagement bank prototype. Forecasting in alpha. Single-player mode v0. Slack bot for Q&A. |
 | **V2** | Q3 2026 | Self-hosted vanilla Hindsight. First on-prem client demo. Forecasting GA. Tasks integration Option C. Two design-partner customers live. |
 | **V2.5** | Q4 2026 | First fork commits, if any trigger has fired. Single-player mode GA. Pricing model finalized. |
@@ -686,7 +785,7 @@ Defer until V1.5 traction is clear.
 |---|---|
 | Cerebro | The team second brain — this product. |
 | Short-Term Memory | The raw-but-cleaned-text Notion database every source worker writes to. Workspace-level. [Already created](https://www.notion.so/optemization/362a48662b2580bfb16dd60e57679d9d). The canonical raw store. |
-| Long-Term Memory | The distilled output DBs as a group. 11 DBs total; 6 of those ship in V1. |
+| Long-Term Memory | The distilled output DBs as a group. 13 DBs total; 8 of those ship in V1 (the 6 original MVP + Objectives + Metrics). |
 | Glossary DB | The Notion DB of aliases ↔ canonical terms ↔ entity types. Read by the shared cleaning library. MUST-ship for V1 with ~15 seed entries. |
 | Cleaning library | Shared TypeScript module imported by every source worker. Exposes `clean(content, glossary)` returning `{ cleanedText, entities }`. Lives in the workers codebase. |
 | Hindsight | [hindsight.vectorize.io](https://hindsight.vectorize.io) — the biomimetic memory system we use as the memory engine. Open-source on [GitHub](https://github.com/vectorize-io/hindsight); V1 uses Hindsight Cloud (managed). |
