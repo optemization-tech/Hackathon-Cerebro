@@ -407,6 +407,13 @@ async function upsertGoogleItem(
 	if (ownerNotionId) {
 		properties["Person Source"] = { people: [{ id: ownerNotionId }] };
 	}
+	const eventDate = item.kind === "email" ? item.dateIso : item.startIso;
+	if (eventDate) {
+		const dateOnly = eventDate.slice(0, 10);
+		if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+			properties["Event Date"] = { date: { start: dateOnly } };
+		}
+	}
 
 	const page = await notion.pages.create({
 		parent: {
@@ -611,6 +618,13 @@ function eventTimeIso(t: calendar_v3.Schema$EventDateTime | undefined): string |
 	return null;
 }
 
+// Cap how far into the future we materialize recurring events. Without this,
+// `singleEvents: true` expands every recurring meeting to Google Calendar's
+// internal horizon (decades out) — flooding STM with thousands of phantom
+// occurrences. 30 days ahead is plenty for "what's near-term?" while letting
+// the delta sync pick up newer occurrences as time advances.
+const CALENDAR_FUTURE_HORIZON_MS = 30 * 24 * 60 * 60 * 1000;
+
 async function pullCalendarForUser(
 	userEmail: string,
 	oldestIso: string,
@@ -618,12 +632,15 @@ async function pullCalendarForUser(
 	const auth = impersonate(userEmail, [SCOPE_CALENDAR]);
 	const calendar = google.calendar({ version: "v3", auth });
 
+	const timeMaxIso = new Date(Date.now() + CALENDAR_FUTURE_HORIZON_MS).toISOString();
+
 	const items: GoogleItem[] = [];
 	let pageToken: string | undefined;
 	do {
 		const resp = await calendar.events.list({
 			calendarId: "primary",
 			timeMin: oldestIso,
+			timeMax: timeMaxIso,
 			singleEvents: true,
 			orderBy: "startTime",
 			maxResults: 250,

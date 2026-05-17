@@ -211,6 +211,9 @@ async function upsertSlackMessage(
 	if (matchedNotionUserId) {
 		properties["Person Source"] = { people: [{ id: matchedNotionUserId }] };
 	}
+	if (isoTime) {
+		properties["Event Date"] = { date: { start: isoTime.slice(0, 10) } };
+	}
 
 	const page = await notion.pages.create({
 		parent: {

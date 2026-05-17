@@ -238,6 +238,12 @@ async function upsertDoc(
 	if (personSourceId) {
 		properties["Person Source"] = { people: [{ id: personSourceId }] };
 	}
+	if (row.createdTime) {
+		const dateOnly = row.createdTime.slice(0, 10);
+		if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+			properties["Event Date"] = { date: { start: dateOnly } };
+		}
+	}
 
 	const page = await notion.pages.create({
 		parent: {
@@ -446,6 +452,12 @@ worker.sync("docsVerified", {
 				};
 				if (personSourceId) {
 					properties["Person Source"] = { people: [{ id: personSourceId }] };
+				}
+				if (row.createdTime) {
+					const dateOnly = row.createdTime.slice(0, 10);
+					if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+						properties["Event Date"] = { date: { start: dateOnly } };
+					}
 				}
 
 				const created = await notion.pages.create({
