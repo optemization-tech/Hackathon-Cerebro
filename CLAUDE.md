@@ -154,6 +154,7 @@ These are CLI/desktop-only redundancy for the rules above. The prompt rules in t
 ## Architecture (high-level)
 
 - **Frontend + API**: Next.js (App Router) on Vercel. Feed and swipe deck read from Long-Term Memory DBs.
+- **Hosting & deployment**: Vercel hosts the Next.js app (`app/`, `lib/`). Production deploys on push to `main`; PRs get preview deployments. Workers (`slack/`, `google/`, `workers/meetings-ingest/`, `notion-docs/`, `indexer/`, `glossary-proposer/`) run on the Notion Workers SDK runtime, not Vercel. Env vars for the Next.js app are managed in the Vercel project dashboard.
 - **Data store**: Notion databases (no separate DB). Twelve Long-Term Memory DBs: People, Companies, Agents, Projects, Tasks, Decisions, Frameworks, Strategies, Insights, Patterns, Signals, Glossary. Plus Short-Term Memory (workspace-level raw store).
 - **Ingestion**: Source workers (see registry above) pull from external APIs → clean → write to Short-Term Memory. Hindsight Indexer (not yet built) will poll STM and feed Hindsight Cloud. Cerebro Sync (not yet built) will write distilled records to Long-Term Memory.
 - **Q&A surfaces** (not yet built): Ask Cerebro agent, Tavus avatar, ElevenLabs voice, graph viz.
