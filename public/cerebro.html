@@ -246,6 +246,29 @@
   .followup-wrap { margin: 16px 0 8px; max-width: 720px; }
   .followup-wrap .prompt-input { font-size: 20px; padding: 6px 0; }
 
+  .starter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .starter-chip {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: border-color 150ms, color 150ms, background 150ms;
+  }
+  .starter-chip:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+    background: rgba(78, 95, 253, 0.06);
+  }
+
   .affordances {
     display: flex;
     gap: 12px;
@@ -1264,7 +1287,7 @@ const SEED_RECENT = [
   { q: "what signals are rising on the cerebro project?", ts: "5d" }
 ];
 
-const SEED_ANSWER = `RC committed to three things in the Tuesday sync with Tem:\n\n① Sharing the AIVC investment thesis doc by Friday.\n\n② Intro'ing the team to two portfolio founders working on agent infrastructure — one in voice, one in browser automation.\n\n③ Reviewing the Cerebro demo before the hackathon weekend, with notes back by Sunday morning.`;
+const SEED_ANSWER = `Welcome to Cerebro — your team's second brain. Ask me about decisions, people, signals, or anything in your knowledge base.`;
 
 const SEED_CITATIONS = [
   { src: "granola", name: "GRANOLA", ts: "TUE 2PM", snippet: "RC: I'll get the thesis doc over by end of week, Friday at the latest." },
@@ -1570,6 +1593,13 @@ function renderHome() {
         <div class="prompt-input-wrap">
           <input id="prompt" class="prompt-input" placeholder="ask cerebro anything…" autocomplete="off" />
         </div>
+        <div class="starter-chips">
+          <button class="starter-chip" onclick="askQuestion('Catch me up on this week')">Catch me up on this week</button>
+          <button class="starter-chip" onclick="askQuestion('What decisions need attention?')">What decisions need attention?</button>
+          <button class="starter-chip" onclick="askQuestion('Who\\'s been most active lately?')">Who's been most active lately?</button>
+          <button class="starter-chip" onclick="askQuestion('Brief me on client engagements')">Brief me on client engagements</button>
+          <button class="starter-chip" onclick="askQuestion('What signals are trending?')">What signals are trending?</button>
+        </div>
         <div class="affordances">
           <button class="affordance primary" onclick="submitPrompt()">⏎ ask</button>
           <button class="affordance" onclick="setState({mode:'speak'})">🎙 speak</button>
@@ -1598,7 +1628,8 @@ setTimeout(() => {
 function submitPrompt() {
   const i = document.getElementById("prompt");
   const v = i ? i.value.trim() : "";
-  askQuestion(v || "what did rc commit to last week?");
+  if (!v) return;
+  askQuestion(v);
 }
 
 /* ─── home feed (live cards from /api/deck, 5-at-a-time infinite scroll) ─── */
