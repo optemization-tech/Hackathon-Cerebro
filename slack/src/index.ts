@@ -422,32 +422,38 @@ worker.tool("backfillRange", {
 			active: true,
 		};
 
-		console.log(`[backfillRange] starting run ${runId}: ${total} channel-days (${targetChannels.length} channels × ${days.length} days)`);
+		const CONCURRENCY = 5;
+		console.log(`[backfillRange] starting run ${runId}: ${total} channel-days (${targetChannels.length} channels × ${days.length} days, concurrency=${CONCURRENCY})`);
 
-		// Fire-and-forget: process the queue asynchronously.
+		// Fire-and-forget: process the queue asynchronously with concurrency.
 		void (async () => {
 			try {
 				const teamInfo = await slack.team.info();
 				const workspaceName = teamInfo.team?.name ?? null;
 				const glossary = await loadGlossary(notion);
 
-				for (const { channel, date } of queue) {
+				for (let i = 0; i < queue.length; i += CONCURRENCY) {
 					if (!activeBackfill?.active) break;
-					try {
-						await runBriefForChannelDay(
-							slack,
-							notion,
-							channel,
-							date,
-							workspaceName,
-							glossary,
-						);
-						activeBackfill.done++;
-					} catch (err) {
-						activeBackfill.failed++;
-						const msg = `#${channel.channelName} ${date}: ${err instanceof Error ? err.message : String(err)}`;
-						activeBackfill.errors.push(msg);
-						console.error(`[backfillRange] ${msg}`);
+					const batch = queue.slice(i, i + CONCURRENCY);
+					const results = await Promise.allSettled(
+						batch.map(({ channel, date }) =>
+							runBriefForChannelDay(slack, notion, channel, date, workspaceName, glossary)
+								.then(() => ({ ok: true as const, channel, date }))
+								.catch((err) => ({ ok: false as const, channel, date, err })),
+						),
+					);
+					for (const r of results) {
+						if (r.status === "fulfilled" && r.value.ok) {
+							activeBackfill.done++;
+						} else if (r.status === "fulfilled" && !r.value.ok) {
+							activeBackfill.failed++;
+							const v = r.value as { channel: ChannelInfo; date: string; err: unknown };
+							const msg = `#${v.channel.channelName} ${v.date}: ${v.err instanceof Error ? v.err.message : String(v.err)}`;
+							activeBackfill.errors.push(msg);
+							console.error(`[backfillRange] ${msg}`);
+						} else {
+							activeBackfill.failed++;
+						}
 					}
 					activeBackfill.lastUpdatedAt = new Date().toISOString();
 				}
