@@ -117,3 +117,24 @@ For current build status see [`STATUS.md`](STATUS.md). For the spec see [`docs/s
 3. **Status-filtered** — only retain tasks with status changes in the last 30 days (skip stale/completed).
 
 **When to revisit:** After the first backfill run, check Hindsight recall quality for task-related queries. If task recall is noisy, implement one of the alternatives above.
+
+---
+
+## LLM backstop for glossary normalization uncertainty
+
+**What:** Add an optional LLM validation layer on top of `clean()` for cases where the regex substitution is uncertain — currently `clean()` is purely rule-based (regex + word boundaries) with no confidence signal.
+
+**Why:** Two failure modes:
+1. **Overconfident false positives** — short aliases (`"RC"`, `"Tim"`) can match unrelated words. Word-boundary anchors help but don't eliminate this. A substitution that changes >X% of the text is a red flag.
+2. **Underconfident misses** — STT mangles not yet in the Glossary (new phonetic spellings, heavy accent artifacts) won't be caught by the current alias list.
+
+**Not urgent now because:** Circleback anonymizes speakers as "Participant N" so most aliases don't fire in practice. The current team Glossary has a small, stable alias set. Curating the alias list carefully (prefer 2+ word aliases over single-word ones) gives better ROI today.
+
+**Proposed threshold heuristic:**
+- If `clean()` produces 0 substitutions on a transcript >500 chars that contains Glossary terms as substrings (word-boundary miss), route to Claude for a light normalization pass.
+- If substitution count exceeds ~20 per 1000 words, flag for LLM review before writing (possible false-positive cascade).
+
+**Acceptance criteria:**
+- Threshold is configurable (env var or Glossary DB metadata), defaulting to off.
+- LLM path is a fallback — if it fails or times out, `clean()` output is used as-is.
+- Cost/latency impact is measured before enabling in production.
